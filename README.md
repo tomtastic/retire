@@ -1,6 +1,7 @@
 # Retirement Drawdown Modeller
 
 [![Tests](https://github.com/tomtastic/retire/actions/workflows/test.yml/badge.svg)](https://github.com/tomtastic/retire/actions/workflows/test.yml)
+[![Coverage](https://img.shields.io/badge/model.js%20coverage-98.19%25%20lines%20%7C%2084.43%25%20branches-brightgreen)](https://github.com/tomtastic/retire/actions/workflows/test.yml)
 
 A private, dependency-free UK retirement drawdown modeller. Open `index.html` locally, or use the live [GitHub Pages site](https://tomtastic.github.io/retire/).
 
@@ -9,6 +10,8 @@ Run the tests with:
 ```sh
 npm test
 ```
+
+Coverage is measured in CI with `npm run test:coverage`; the badge reports the current `model.js` result (98.19% line coverage, 84.43% branch coverage, 100% function coverage).
 
 All calculations run in the browser; user figures are stored locally and are not uploaded.
 

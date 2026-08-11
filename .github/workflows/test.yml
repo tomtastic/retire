@@ -21,3 +21,5 @@ jobs:
           cache: npm
       - name: Run test suite
         run: npm test
+      - name: Measure coverage
+        run: npm run test:coverage
