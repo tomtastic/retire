@@ -210,8 +210,8 @@ function render(values) {
 
   summaryGrid.innerHTML = [
     summaryCard("Starting portfolio", money.format(total), `${money.format(accessible)} in stocks, ISA & cash · ${money.format(values.pensionOne + values.pensionTwo)} in pensions`),
-    summaryCard("3% plan · end balance", money.format(three.rows.at(-1).balance), `${money.format(three.baseAnnualIncome)} standard annual draw`, "three", downsideWarning(downsideThree)),
-    summaryCard("4% plan · end balance", money.format(four.rows.at(-1).balance), `${money.format(four.baseAnnualIncome)} standard annual draw`, "four", downsideWarning(downsideFour)),
+    summaryCard("3% plan · end balance", money.format(three.rows.at(-1).balance), annualDrawDetail(values, three), "three", downsideWarning(downsideThree)),
+    summaryCard("4% plan · end balance", money.format(four.rows.at(-1).balance), annualDrawDetail(values, four), "four", downsideWarning(downsideFour)),
     summaryCard("Inheritance", values.inheritanceAmount ? money.format(values.inheritanceAmount) : "None", values.inheritanceAmount ? `Nominal amount in ${values.inheritanceYear}` : "No inheritance included")
   ].join("");
 
@@ -220,6 +220,15 @@ function render(values) {
   tablesGrid.innerHTML = [renderTable(three), renderTable(four)].join("");
   drawChart(three, four, downsideThree, downsideFour);
   if (needsCareRecommendation) scheduleCareGuidance(values, three, four);
+}
+
+function annualDrawDetail(values, result) {
+  const standard = `${money.format(result.baseAnnualIncome)} standard annual draw`;
+  const retirementAge = ageAt(parseLocalDate(values.retirementDate), parseLocalDate(values.birthDate));
+  const earlyPhaseActive = retirementAge < values.boostUntilAge && values.boost > 0;
+  if (!earlyPhaseActive) return standard;
+  const higher = result.baseAnnualIncome * (1 + values.boost / 100);
+  return `${standard}<br><span class="summary-card__early-income">${money.format(higher)} higher early annual draw until age ${values.boostUntilAge}</span>`;
 }
 
 function downsideWarning(result) {

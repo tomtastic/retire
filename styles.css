@@ -409,6 +409,7 @@ summary { cursor: pointer; font-size: .92rem; font-weight: 800; }
 .summary-card__label { color: var(--muted); font-size: .78rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
 .summary-card__value { margin: 11px 0 5px; font-family: Georgia, serif; font-size: clamp(1.55rem, 3vw, 2.15rem); letter-spacing: -.03em; }
 .summary-card__detail { margin: 0; color: var(--muted); font-size: .82rem; line-height: 1.45; }
+.summary-card__early-income { color: var(--ink); }
 .summary-card__warning { margin: 13px 0 0; padding-top: 11px; border-top: 1px solid #e8c7b2; color: #78401f; font-size: .78rem; line-height: 1.45; }
 .summary-card__warning strong { display: block; margin-bottom: 2px; color: var(--orange); text-transform: uppercase; letter-spacing: .035em; }
 

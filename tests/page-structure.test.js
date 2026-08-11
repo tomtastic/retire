@@ -81,6 +81,8 @@ test("projection tables show the pot currently available to withdraw", () => {
 test("summary plan cards identify their values as end balances", () => {
   assert.match(app, /summaryCard\("3% plan · end balance"/);
   assert.match(app, /summaryCard\("4% plan · end balance"/);
+  assert.match(app, /function annualDrawDetail\(values, result\)/);
+  assert.match(app, /higher early annual draw until age/);
 });
 
 test("table rows include labelled native pot-mix bars", () => {
