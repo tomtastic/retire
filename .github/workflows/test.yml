@@ -6,7 +6,7 @@ on:
   pull_request:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   test:
@@ -22,4 +22,21 @@ jobs:
       - name: Run test suite
         run: npm test
       - name: Measure coverage
-        run: npm run test:coverage
+        run: npm run test:coverage 2>&1 | tee coverage-report.txt
+      - name: Generate coverage badge data
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: node scripts/make-coverage-badge.js coverage-report.txt coverage.json
+      - name: Publish coverage badge data
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          badge_data="$(cat coverage.json)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin coverage:coverage || true
+          git branch -D coverage 2>/dev/null || true
+          git switch --orphan coverage
+          git rm -rf .
+          printf '%s\n' "$badge_data" > coverage.json
+          git add coverage.json
+          git commit -m "Update coverage badge [skip ci]" || exit 0
+          git push origin coverage --force
