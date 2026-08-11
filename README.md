@@ -1,7 +1,7 @@
 # Retirement Drawdown Modeller
 
-[![Tests](https://github.com/tomtastic/retire/actions/workflows/test.yml/badge.svg)](https://github.com/tomtastic/retire/actions/workflows/test.yml)
-[![Build and deploy](https://github.com/tomtastic/retire/actions/workflows/pages.yml/badge.svg)](https://github.com/tomtastic/retire/actions/workflows/pages.yml)
+[![Tests](https://github.com/tomtastic/retire/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/tomtastic/retire/actions/workflows/test.yml?query=branch%3Amain)
+[![Build and deploy](https://github.com/tomtastic/retire/actions/workflows/pages.yml/badge.svg?branch=main)](https://github.com/tomtastic/retire/actions/workflows/pages.yml?query=branch%3Amain)
 [![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/tomtastic/retire/coverage/coverage.json)](https://github.com/tomtastic/retire/actions/workflows/test.yml)
 
 A private, dependency-free UK retirement drawdown modeller. Open `index.html` locally, or use the live [GitHub Pages site](https://tomtastic.github.io/retire/).
