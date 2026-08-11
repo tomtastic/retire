@@ -5,6 +5,6 @@
   "description": "Dependency-free UK retirement drawdown modeller",
   "scripts": {
     "test": "node --test tests/*.test.js",
-    "test:coverage": "node --test --experimental-test-coverage --test-coverage-include=model.js tests/*.test.js"
+    "test:coverage": "node --test --experimental-test-coverage tests/*.test.js"
   }
 }
