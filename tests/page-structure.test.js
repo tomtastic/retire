@@ -178,6 +178,8 @@ test("chart plots available pot and keeps total balance in hover context", () =>
   assert.match(app, /maxAvailablePot/);
   assert.match(app, /row\.availablePot/);
   assert.match(app, /3% available:[\s\S]*total \$\{money\.format\(threeRow\.balance\)\}/);
+  assert.match(app, /drawHigherIncomeBand\(ctx, three, xFor, height, pad, values\)/);
+  assert.match(app, /fillText\("Higher income"/);
 });
 
 test("each table includes a dynamic pot-depletion narrative", () => {

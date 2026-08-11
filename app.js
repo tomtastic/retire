@@ -218,7 +218,7 @@ function render(values) {
   renderEarlyIncomePreview(values, three, four);
   const needsCareRecommendation = renderCareGuidance(values, three, four, false);
   tablesGrid.innerHTML = [renderTable(three), renderTable(four)].join("");
-  drawChart(three, four, downsideThree, downsideFour);
+  drawChart(three, four, downsideThree, downsideFour, values);
   if (needsCareRecommendation) scheduleCareGuidance(values, three, four);
 }
 
@@ -525,7 +525,7 @@ function isKeyEvent(row) {
   return row.pensionStarted || row.inheritedThisYear || row.stateStarted || row.depletionStarted;
 }
 
-function drawChart(three, four, downsideThree, downsideFour) {
+function drawChart(three, four, downsideThree, downsideFour, values) {
   const rect = canvas.getBoundingClientRect();
   const dpr = Math.max(1, window.devicePixelRatio || 1);
   canvas.width = Math.round(rect.width * dpr);
@@ -570,6 +570,9 @@ function drawChart(three, four, downsideThree, downsideFour) {
     ctx.fillText(String(row.year), xFor(index), height - pad.bottom + 12);
   });
 
+  const retirementAge = ageAt(parseLocalDate(values.retirementDate), parseLocalDate(values.birthDate));
+  if (retirementAge < values.boostUntilAge && values.boost > 0) drawHigherIncomeBand(ctx, three, xFor, height, pad, values);
+
   plotLine(ctx, downsideThree.rows, xFor, yFor, "#16735f", [6, 6], 2, "availablePot");
   plotLine(ctx, downsideFour.rows, xFor, yFor, "#dc6f3d", [6, 6], 2, "availablePot");
   plotLine(ctx, three.rows, xFor, yFor, "#16735f", [], 3, "availablePot");
@@ -604,6 +607,27 @@ function drawChart(three, four, downsideThree, downsideFour) {
   chartGeometry = { xFor, pad, plotWidth, rows: three.rows, three, four, downsideThree, downsideFour, width, height };
   tooltipIndex = -1;
   tooltip.hidden = true;
+}
+
+function drawHigherIncomeBand(ctx, result, xFor, height, pad, values) {
+  const endIndex = result.rows.findIndex(row => row.age >= values.boostUntilAge);
+  const lastIndex = result.rows.length - 1;
+  const index = endIndex >= 0 ? endIndex : lastIndex;
+  if (index <= 0) return;
+  const startX = xFor(0);
+  const endX = xFor(index);
+  const bandY = height - pad.bottom + 25;
+  ctx.save();
+  ctx.fillStyle = "#c48a3a";
+  ctx.globalAlpha = 0.9;
+  ctx.fillRect(startX, bandY, Math.max(2, endX - startX), 8);
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = "#8a6226";
+  ctx.font = "700 10px system-ui, sans-serif";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "bottom";
+  ctx.fillText("Higher income", startX, bandY - 2);
+  ctx.restore();
 }
 
 function plotLine(ctx, rows, xFor, yFor, colour, dash = [], lineWidth = 3, valueKey = "availablePot") {
