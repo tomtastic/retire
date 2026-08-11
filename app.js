@@ -616,9 +616,9 @@ function drawHigherIncomeBand(ctx, result, xFor, height, pad, values) {
   if (index <= 0) return;
   const startX = xFor(0);
   const endX = xFor(index);
-  const bandY = height - pad.bottom + 25;
+  const bandY = height - pad.bottom + 2;
   ctx.save();
-  ctx.fillStyle = "#c48a3a";
+  ctx.fillStyle = "#d39a3c";
   ctx.globalAlpha = 0.9;
   ctx.fillRect(startX, bandY, Math.max(2, endX - startX), 8);
   ctx.globalAlpha = 1;
