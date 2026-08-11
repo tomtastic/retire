@@ -35,7 +35,7 @@ jobs:
           git fetch origin coverage:coverage || true
           git branch -D coverage 2>/dev/null || true
           git switch --orphan coverage
-          git rm -rf .
+          git clean -fdx
           printf '%s\n' "$badge_data" > coverage.json
           git add coverage.json
           git commit -m "Update coverage badge [skip ci]" || exit 0
