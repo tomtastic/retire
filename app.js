@@ -289,7 +289,10 @@ function renderEarlyIncomePreview(values, three, four) {
   const phaseActive = retirementAge < values.boostUntilAge && values.boost > 0;
 
   if (!phaseActive) {
-    earlyIncomePreview.innerHTML = `<p class="early-income-preview__note">No higher-income phase applies at retirement with these settings. First-year net income would be ${money.format(three.rows[0].netMonthly)}/month at 3% and ${money.format(four.rows[0].netMonthly)}/month at 4%.</p>`;
+    const note = document.createElement("p");
+    note.className = "early-income-preview__note";
+    note.textContent = `No higher-income phase applies at retirement with these settings. First-year net income would be ${money.format(three.rows[0].netMonthly)}/month at 3% and ${money.format(four.rows[0].netMonthly)}/month at 4%.`;
+    earlyIncomePreview.replaceChildren(note);
     return;
   }
 
@@ -297,18 +300,43 @@ function renderEarlyIncomePreview(values, three, four) {
   const baselineThree = scenario(baselineValues, 0.03);
   const baselineFour = scenario(baselineValues, 0.04);
 
-  earlyIncomePreview.innerHTML = `
-    <div class="early-income-preview__item early-income-preview__item--three">
-      <span class="early-income-preview__label">3% plan · net monthly</span>
-      <strong class="early-income-preview__value">${money.format(three.rows[0].netMonthly)}</strong>
-      <span class="early-income-preview__baseline">Without uplift: <strong>${money.format(baselineThree.rows[0].netMonthly)}/month</strong></span>
-    </div>
-    <div class="early-income-preview__item early-income-preview__item--four">
-      <span class="early-income-preview__label">4% plan · net monthly</span>
-      <strong class="early-income-preview__value">${money.format(four.rows[0].netMonthly)}</strong>
-      <span class="early-income-preview__baseline">Without uplift: <strong>${money.format(baselineFour.rows[0].netMonthly)}/month</strong></span>
-    </div>
-    <p class="early-income-preview__note">Average for the first 12 projection months with a ${values.boost}% uplift, continuing until age ${values.boostUntilAge}.</p>`;
+  const itemThree = document.createElement("div");
+  itemThree.className = "early-income-preview__item early-income-preview__item--three";
+  const labelThree = document.createElement("span");
+  labelThree.className = "early-income-preview__label";
+  labelThree.textContent = "3% plan · net monthly";
+  const valueThree = document.createElement("strong");
+  valueThree.className = "early-income-preview__value";
+  valueThree.textContent = money.format(three.rows[0].netMonthly);
+  const baselineLabelThree = document.createElement("span");
+  baselineLabelThree.className = "early-income-preview__baseline";
+  baselineLabelThree.append("Without uplift: ");
+  const baselineValueThree = document.createElement("strong");
+  baselineValueThree.textContent = `${money.format(baselineThree.rows[0].netMonthly)}/month`;
+  baselineLabelThree.appendChild(baselineValueThree);
+  itemThree.append(labelThree, valueThree, baselineLabelThree);
+
+  const itemFour = document.createElement("div");
+  itemFour.className = "early-income-preview__item early-income-preview__item--four";
+  const labelFour = document.createElement("span");
+  labelFour.className = "early-income-preview__label";
+  labelFour.textContent = "4% plan · net monthly";
+  const valueFour = document.createElement("strong");
+  valueFour.className = "early-income-preview__value";
+  valueFour.textContent = money.format(four.rows[0].netMonthly);
+  const baselineLabelFour = document.createElement("span");
+  baselineLabelFour.className = "early-income-preview__baseline";
+  baselineLabelFour.append("Without uplift: ");
+  const baselineValueFour = document.createElement("strong");
+  baselineValueFour.textContent = `${money.format(baselineFour.rows[0].netMonthly)}/month`;
+  baselineLabelFour.appendChild(baselineValueFour);
+  itemFour.append(labelFour, valueFour, baselineLabelFour);
+
+  const note = document.createElement("p");
+  note.className = "early-income-preview__note";
+  note.textContent = `Average for the first 12 projection months with a ${values.boost}% uplift, continuing until age ${values.boostUntilAge}.`;
+
+  earlyIncomePreview.replaceChildren(itemThree, itemFour, note);
 }
 
 function renderCareGuidance(values, three, four, calculateRecommendation = true) {
