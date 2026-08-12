@@ -14,7 +14,7 @@ const {
   solveBoostForCareReserve,
   solveRateForCareReserve,
   maxBoostBeforePensionAccess
-  ,normalizePerson, migratePeopleState
+  ,normalizePerson, migratePeopleState, earlyIncomeBridgeSafe
 } = require("../model.js");
 
 const DEFAULTS = Object.freeze({
@@ -110,6 +110,25 @@ test("early-income uplift cap protects the bridge pot for both drawdown plans", 
   assert.equal(maxBoostBeforePensionAccess(DEFAULTS), 85);
   assert.equal(maxBoostBeforePensionAccess({ ...DEFAULTS, pensionAge: 48 }), 200);
   assert.equal(maxBoostBeforePensionAccess({ ...DEFAULTS, stocks: 1, isa: 0, cash: 0 }), 0);
+});
+
+test("3% early-income bridge safety reaches UK State Pension and USA account access", () => {
+  assert.equal(earlyIncomeBridgeSafe(DEFAULTS), true);
+  assert.equal(earlyIncomeBridgeSafe({ ...DEFAULTS, boost: 200 }), false);
+
+  const usa = normalizePerson({
+    country: "USA",
+    birthDate: "1978-01-07",
+    retirementDate: "2027-01-01",
+    horizon: 50,
+    boostUntilAge: 60,
+    accounts: [
+      { type: "401k", balance: 500000 },
+      { type: "taxableBrokerage", balance: 300000 }
+    ]
+  });
+  assert.equal(earlyIncomeBridgeSafe({ ...usa, boost: 0 }), true);
+  assert.equal(earlyIncomeBridgeSafe({ ...usa, boost: 200 }), false);
 });
 
 test("monthly compounding and withdrawals match an independent recurrence", () => {

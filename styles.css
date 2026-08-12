@@ -351,6 +351,8 @@ datalist { display: none; }
   line-height: 1.5;
 }
 
+.field-help--warning { color: var(--red); font-weight: 700; }
+
 .early-income-preview {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 280px));

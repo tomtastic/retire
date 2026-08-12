@@ -17,6 +17,7 @@ const {
   solveBoostForCareReserve,
   solveRateForCareReserve,
   maxBoostBeforePensionAccess,
+  earlyIncomeBridgeSafe,
   normalizePerson,
   migratePeopleState
 } = globalThis.RetirementModel;
@@ -124,7 +125,7 @@ function buildPersonWorkspace(personKey) {
   const form = el("form", { id: `${prefix}-form`, className: "person-form" });
   const context = {
     personKey, prefix, workspace, form, inputs: {}, chart: {}, results: null,
-    renderFrame: null, careJob: null, careVersion: 0,
+    renderFrame: null, careJob: null, careVersion: 0, earlyControlValues: null,
     profileCountry: peopleState.people[personKey].selectedCountry
   };
   contexts[personKey] = context;
@@ -196,6 +197,7 @@ function buildPersonWorkspace(personKey) {
   });
   form.addEventListener("input", event => {
     if (event.target === country) return;
+    if (!enforceEarlyIncomeBridge(context, event.target)) return;
     context.status.textContent = "Unsaved changes";
     cancelCareGuidance(context);
     context.boostOutput.value = `${range.value}%`;
@@ -284,8 +286,52 @@ function populateForm(context, rawValues) {
   }
   context.boostOutput.value = `${context.inputs.boost.value}%`;
   context.boostOutput.textContent = `${context.inputs.boost.value}%`;
+  context.earlyControlValues = {
+    boost: Number(context.inputs.boost.value),
+    boostUntilAge: Number(context.inputs.boostUntilAge.value)
+  };
+  updateEarlyIncomeLimitNote(context);
   context.status.textContent = "Saved locally";
   context.error.textContent = "";
+}
+
+function enforceEarlyIncomeBridge(context, target) {
+  const key = target === context.inputs.boost ? "boost" : target === context.inputs.boostUntilAge ? "boostUntilAge" : null;
+  if (!key) {
+    updateEarlyIncomeLimitNote(context);
+    return true;
+  }
+  const previous = context.earlyControlValues[key];
+  const requested = Number(target.value);
+  if (!Number.isFinite(requested)) return true;
+  const extending = Number.isFinite(previous) && requested > previous;
+  let bridgeSafe;
+  try {
+    bridgeSafe = earlyIncomeBridgeSafe(formValues(context));
+  } catch {
+    return true;
+  }
+  if (extending && !bridgeSafe) {
+    target.value = String(previous);
+    context.boostOutput.value = `${context.inputs.boost.value}%`;
+    context.boostOutput.textContent = `${context.inputs.boost.value}%`;
+    updateEarlyIncomeLimitNote(context, true);
+    return false;
+  }
+  context.earlyControlValues[key] = requested;
+  updateEarlyIncomeLimitNote(context);
+  return true;
+}
+
+function updateEarlyIncomeLimitNote(context, blocked = false) {
+  const values = formValues(context);
+  const milestone = values.country === "USA"
+    ? `traditional-account access at age ${values.penaltyFreeAccessAge}`
+    : `private-pension access and State Pension at age ${values.stateAge}`;
+  context.boostNote.textContent = blocked
+    ? `That increase was blocked because the 3% plan would deplete its available pot before ${milestone}. Reduce the uplift or its duration first.`
+    : `0–200% in 5-point steps. Increases are blocked if the 3% plan would deplete its available pot before ${milestone}.`;
+  context.boostNote.classList.toggle("field-help--warning", blocked);
 }
 
 function validate(context, values, report = false) {
@@ -704,7 +750,8 @@ function renderTable(result, values, format) {
   }
   const scroll = el("div", { className: "table-scroll", tabIndex: 0, role: "region", "aria-label": `${rateLabel} projection table; scroll horizontally to see all columns` }, el("table", {}, head, body));
   return el("article", { className: "table-card" },
-    el("div", { className: "table-card__heading" }, el("h3", { text: rateLabel }), el("p", { text: `Available pot ends with ${format.money.format(result.rows.at(-1).availablePot)} in today's money. Grouped where income is unchanged; balances are at range end.` })),
+    el("div", { className: "table-card__heading" }, el("h3", { text: rateLabel }),
+      el("p", {}, `Available pot ends with ${format.money.format(result.rows.at(-1).availablePot)} in today's money.`, el("br"), "Grouped where income is unchanged; balances are at range end.")),
     el("p", { className: "table-scroll-hint", text: "Swipe horizontally to see all columns" }), scroll, renderPotNarrative(result, values, format));
 }
 

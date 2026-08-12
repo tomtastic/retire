@@ -624,6 +624,29 @@
   }
 
   /**
+   * Check that the 3% plan retains an available pot until the profile's bridge milestone.
+   * UK profiles must reach State Pension age (and therefore private-pension access first);
+   * USA profiles must reach the configured traditional-account access age.
+   * @param {Object<string, *>} values Candidate model values.
+   * @returns {boolean} Whether early-income settings preserve the bridge.
+   */
+  function earlyIncomeBridgeSafe(values) {
+    const person = normalizePerson(values);
+    const birth = parseLocalDate(person.birthDate);
+    const milestoneAge = person.country === "USA" ? person.penaltyFreeAccessAge : person.stateAge;
+    const result = scenario(person, 0.03);
+    if (result.depletedAt && ageAtPrecise(result.depletedAt, birth) < milestoneAge) return false;
+    return !result.rows.some(row => row.age < milestoneAge && row.availablePot < 0.01);
+  }
+
+  /** Return age including completed months for half-year USA access boundaries. */
+  function ageAtPrecise(date, birthDate) {
+    const months = (date.getFullYear() - birthDate.getFullYear()) * 12 + date.getMonth() - birthDate.getMonth();
+    const adjustedMonths = date.getDate() < birthDate.getDate() ? months - 1 : months;
+    return adjustedMonths / 12;
+  }
+
+  /**
    * Test whether a scenario first becomes underfunded before a target age.
    * @param {Object} result Calculated scenario.
    * @param {Object<string, *>} values Model values containing the birth date.
@@ -652,6 +675,7 @@
     solveBoostForCareReserve,
     solveRateForCareReserve,
     maxBoostBeforePensionAccess,
+    earlyIncomeBridgeSafe,
     depletesBeforeAge,
     USA_DEFAULTS,
     normalizePerson,

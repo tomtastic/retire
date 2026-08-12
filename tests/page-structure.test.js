@@ -56,6 +56,14 @@ test("both people receive the same accessible early-income slider and preview", 
   assert.match(css, /\.range-input input\[type="range"\] \{ min-height: 44px; \}/);
 });
 
+test("early-income increases are blocked when the 3% bridge becomes unsafe", () => {
+  assert.match(app, /enforceEarlyIncomeBridge\(context, event\.target\)/);
+  assert.match(app, /bridgeSafe = earlyIncomeBridgeSafe\(formValues\(context\)\)/);
+  assert.match(app, /extending && !bridgeSafe/);
+  assert.match(app, /target\.value = String\(previous\)/);
+  assert.match(app, /That increase was blocked because the 3% plan/);
+});
+
 test("percentage assumptions use in-box suffixes while ages use plain inputs", () => {
   for (const key of ["realReturn", "inflation", "traditionalTaxableShare", "taxableWithdrawalShare"]) {
     assert.match(app, new RegExp(`suffixInput\\(context, "${key}", "%"`));
@@ -99,6 +107,7 @@ test("projection tables group unchanged years and wrap the wide USA headings", (
   assert.match(app, /\["Traditional", "accounts"\]/);
   assert.match(app, /\["Available", "pot"\]/);
   assert.match(css, /\.table-heading--wrapped \{[^}]*white-space: normal/);
+  assert.match(app, /in today's money\.`, el\("br"\), "Grouped where/);
 });
 
 test("both people receive full deferred care-reserve guidance", () => {
