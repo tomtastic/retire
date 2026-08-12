@@ -48,7 +48,7 @@ test("dynamic work is coalesced and care solving is deferred", () => {
 test("summary cards warn when their 1% downside reaches zero", () => {
   assert.match(app, /downsideWarning\(downsideThree\)/);
   assert.match(app, /downsideWarning\(downsideFour\)/);
-  assert.match(app, /1% worst-case risk/);
+  assert.match(app, /1% return worst-case/);
   assert.match(app, /reaches £0/);
 });
 

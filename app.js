@@ -281,7 +281,7 @@ function annualDrawDetail(values, result) {
  */
 function downsideWarning(result) {
   const zeroRow = result.rows.find(row => row.balance < 0.01);
-  return zeroRow ? `At a 1% real return, this plan reaches £0 in ${zeroRow.year} (age ${zeroRow.age}).` : "";
+  return zeroRow ? `This plan reaches £0 in ${zeroRow.year} (age ${zeroRow.age}).` : "";
 }
 
 /**
@@ -323,7 +323,7 @@ function summaryCard(label, value, detail, colour = "", warning = "") {
     const warningEl = document.createElement("p");
     warningEl.className = "summary-card__warning";
     const strongEl = document.createElement("strong");
-    strongEl.textContent = "1% worst-case risk";
+    strongEl.textContent = "1% return worst-case";
     warningEl.appendChild(strongEl);
     warningEl.appendChild(document.createTextNode(warning));
     article.appendChild(warningEl);
