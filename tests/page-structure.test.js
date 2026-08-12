@@ -25,6 +25,7 @@ test("both person tabs host the same reusable workspace implementation", () => {
   assert.match(app, /const submit = el\("button", \{ className: "button button--primary", type: "submit", text: "Validate and save" \}\)/);
   assert.match(app, /text: "Reset defaults"/);
   assert.match(app, /text: "Clear saved data"/);
+  assert.doesNotMatch(app, /el\("h3", \{ text: PERSON_LABELS\[personKey\] \}\)/);
 });
 
 test("state uses versioned country profiles and migrates through the model", () => {

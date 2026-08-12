@@ -130,11 +130,8 @@ function buildPersonWorkspace(personKey) {
   };
   contexts[personKey] = context;
 
-  const heading = el("div", { className: "section-heading person-heading" },
-    el("h3", { text: PERSON_LABELS[personKey] }),
-    context.status = el("div", { id: `${prefix}-saved-state`, className: "saved-state", role: "status", "aria-live": "polite", text: "Saved locally" })
-  );
-  form.append(heading);
+  context.status = el("div", { id: `${prefix}-saved-state`, className: "saved-state person-saved-state", role: "status", "aria-live": "polite", text: "Saved locally" });
+  form.append(context.status);
 
   const profile = makeFieldset("Profile", "form-grid form-grid--dates");
   const country = el("select", { id: `${prefix}-country`, name: "country", disabled: personKey === "personOne" },

@@ -61,8 +61,7 @@ select {
 
 select:focus { border-color: var(--green); outline: 0; box-shadow: 0 0 0 3px rgb(22 115 95 / 13%); }
 select:disabled { background: #f1f3ee; color: #536561; opacity: 1; }
-.person-heading { margin-top: 24px; align-items: center; }
-.person-heading h3 { margin: 0; font-family: Georgia, serif; font-size: 1.45rem; font-weight: 500; }
+.person-saved-state { margin-top: 24px; text-align: right; }
 .person-results-host { margin-top: 12px; }
 
 .hero {
