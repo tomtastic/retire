@@ -67,15 +67,13 @@ test("form fields do not stretch to match taller help content", () => {
 });
 
 test("projection tables show the pot currently available to withdraw", () => {
-  assert.match(app, /<th>Pension pot<\/th>/);
-  assert.match(app, /<th>Available pot<\/th>/);
-  assert.match(app, /<th>Pot mix<\/th>/);
+  assert.match(app, /\["Year\(s\)", "Age\(s\)", "Net \/ month", "Pension pot", "Available pot", "Pot mix"\]/);
   assert.match(app, /row\.pensionBalance/);
-  assert.match(app, />Locked</);
+  assert.match(app, /note\("Locked", "pot-note"\)/);
   assert.match(app, /row\.availablePot/);
   assert.match(app, /available pot is stocks, ISA and cash before pension access/);
-  assert.doesNotMatch(app, /<th>Accessible assets<\/th>/);
-  assert.doesNotMatch(app, /<th>End balance<\/th>/);
+  assert.doesNotMatch(app, /"Accessible assets"/);
+  assert.doesNotMatch(app, /"End balance"/);
 });
 
 test("summary plan cards identify their values as end balances", () => {
@@ -92,16 +90,24 @@ test("table rows include labelled native pot-mix bars", () => {
   assert.match(app, /\["ISA", "ISA", pots\.isa, "isa", scale\]/);
   assert.match(app, /\["Cash", "Ca", pots\.cash, "cash", scale\]/);
   assert.match(app, /\["State Pension \(annual\)", "SP", stateIncome, "state", scale\]/);
-  assert.match(app, /role="img" aria-label="Pot mix/);
+  assert.match(app, /bars\.setAttribute\("role", "img"\)/);
+  assert.match(app, /bars\.setAttribute\("aria-label", `Pot mix/);
   assert.match(app, /filter\(\(\[, , value\]\) => value > 0\.005\)/);
   assert.match(css, /height: 62px; margin-block: -7px/);
 });
 
 test("projection tables begin with opening portfolio values", () => {
-  assert.match(app, /class="opening-row"/);
-  assert.match(app, /Opening · \$\{result\.startingYear\}/);
+  assert.match(app, /openingRow\.className = "opening-row"/);
+  assert.match(app, /tableCell\(`Opening · \$\{result\.startingYear\}`\)/);
   assert.match(app, /result\.startingPension/);
   assert.match(app, /result\.startingAvailablePot/);
+});
+
+test("dynamic rendering does not use HTML parsing sinks", () => {
+  assert.doesNotMatch(app, /\b(?:innerHTML|outerHTML|insertAdjacentHTML)\b/);
+  assert.match(app, /tablesGrid\.replaceChildren\(renderTable\(three\), renderTable\(four\)\)/);
+  assert.match(app, /careGuidance\.replaceChildren\(icon, content\)/);
+  assert.match(app, /tooltip\.replaceChildren\(/);
 });
 
 test("projection tables show their full vertical height", () => {

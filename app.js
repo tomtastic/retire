@@ -220,7 +220,7 @@ function render(values) {
 
   renderEarlyIncomePreview(values, three, four);
   const needsCareRecommendation = renderCareGuidance(values, three, four, false);
-  tablesGrid.innerHTML = [renderTable(three), renderTable(four)].join("");
+  tablesGrid.replaceChildren(renderTable(three), renderTable(four));
   drawChart(three, four, downsideThree, downsideFour, values);
   if (needsCareRecommendation) scheduleCareGuidance(values, three, four);
 }
@@ -347,32 +347,41 @@ function renderCareGuidance(values, three, four, calculateRecommendation = true)
   }));
 
   if (plans.some(plan => plan.balance == null)) {
-    careGuidance.className = "care-guidance care-guidance--caution";
-    careGuidance.removeAttribute("aria-busy");
-    careGuidance.innerHTML = `<div class="care-guidance__icon" aria-hidden="true">90</div><div><h3>Extend the projection to assess care reserves</h3><p>The current horizon does not reach age ${CARE_RESERVE_AGE}. Increase it before using the £1m care-reserve guide.</p></div>`;
+    updateCareGuidance(
+      "care-guidance care-guidance--caution",
+      false,
+      "Extend the projection to assess care reserves",
+      [`The current horizon does not reach age ${CARE_RESERVE_AGE}. Increase it before using the £1m care-reserve guide.`]
+    );
     return false;
   }
 
-  const balances = plans.map(plan => `<strong>${plan.label}: ${money.format(plan.balance)}</strong>`).join(" · ");
+  const balances = plans.map(plan => ({ strong: `${plan.label}: ${money.format(plan.balance)}` }));
   const surplusPlans = plans.filter(plan => plan.status === "surplus");
 
   if (surplusPlans.length === 0) {
     const shortfallPlans = plans.filter(plan => plan.status === "shortfall");
-    careGuidance.className = `care-guidance${shortfallPlans.length ? " care-guidance--caution" : ""}`;
-    careGuidance.removeAttribute("aria-busy");
     const message = shortfallPlans.length === plans.length
       ? "Neither plan reaches the £1m ten-year care assumption, so the model does not suggest increasing early spending."
       : shortfallPlans.length
         ? `${shortfallPlans.map(plan => plan.label).join(" and ")} falls below the £1m care assumption; no spend-more suggestion is made for that plan.`
         : "Both plans finish exactly on the £1m care-reserve target.";
-    careGuidance.innerHTML = `<div class="care-guidance__icon" aria-hidden="true">90</div><div><h3>Age-90 care reserve</h3><p>${balances}.</p><p>${message}</p></div>`;
+    updateCareGuidance(
+      `care-guidance${shortfallPlans.length ? " care-guidance--caution" : ""}`,
+      false,
+      "Age-90 care reserve",
+      [interleave(balances, " · ").concat("."), message]
+    );
     return false;
   }
 
   if (!calculateRecommendation) {
-    careGuidance.className = "care-guidance";
-    careGuidance.setAttribute("aria-busy", "true");
-    careGuidance.innerHTML = `<div class="care-guidance__icon" aria-hidden="true">90</div><div><h3>Age-90 care reserve</h3><p>${balances}.</p><p>Updating the early-spending suggestion…</p></div>`;
+    updateCareGuidance(
+      "care-guidance",
+      true,
+      "Age-90 care reserve",
+      [interleave(balances, " · ").concat("."), "Updating the early-spending suggestion…"]
+    );
     return true;
   }
 
@@ -381,25 +390,91 @@ function renderCareGuidance(values, three, four, calculateRecommendation = true)
     const suggestedBoost = solveBoostForCareReserve(values, plan.result.rate);
     if (suggestedBoost == null) {
       const suggestedRate = solveRateForCareReserve(values);
-      if (suggestedRate == null) return `${plan.label} remains above £1m even at the model's tested spending limits.`;
+      if (suggestedRate == null) return [`${plan.label} remains above £1m even at the model's tested spending limits.`];
       const maximumBoostBalance = balanceAtAge(scenario({ ...values, boost: MAX_BOOST }, plan.result.rate), CARE_RESERVE_AGE);
-      return `${plan.label}: even the tested maximum uplift leaves about <strong>${money.format(maximumBoostBalance)}</strong> at 90. A broader initial drawdown near <strong>${(suggestedRate * 100).toFixed(2)}%</strong> would target roughly £1m, but the slider is capped at <strong>${bridgeMax}%</strong> to protect the pre-pension bridge.`;
+      return [
+        `${plan.label}: even the tested maximum uplift leaves about `,
+        { strong: money.format(maximumBoostBalance) },
+        " at 90. A broader initial drawdown near ",
+        { strong: `${(suggestedRate * 100).toFixed(2)}%` },
+        " would target roughly £1m, but the slider is capped at ",
+        { strong: `${bridgeMax}%` },
+        " to protect the pre-pension bridge."
+      ];
     }
     if (suggestedBoost > bridgeMax) {
-      return `${plan.label}: reaching £1m at 90 would need an uplift near <strong>${Math.round(suggestedBoost)}%</strong>, but the slider is capped at <strong>${bridgeMax}%</strong> to prevent the non-pension pot running out before pensions unlock.`;
+      return [
+        `${plan.label}: reaching £1m at 90 would need an uplift near `,
+        { strong: `${Math.round(suggestedBoost)}%` },
+        ", but the slider is capped at ",
+        { strong: `${bridgeMax}%` },
+        " to prevent the non-pension pot running out before pensions unlock."
+      ];
     }
     const earlyAnnual = plan.result.startingBalance * plan.result.rate * (1 + suggestedBoost / 100);
-    return `${plan.label}: try an early-income uplift near <strong>${Math.round(suggestedBoost)}%</strong>, giving about <strong>${money.format(earlyAnnual)} gross a year</strong> before age ${values.boostUntilAge}.`;
-  }).join(" ");
+    return [
+      `${plan.label}: try an early-income uplift near `,
+      { strong: `${Math.round(suggestedBoost)}%` },
+      ", giving about ",
+      { strong: `${money.format(earlyAnnual)} gross a year` },
+      ` before age ${values.boostUntilAge}.`
+    ];
+  });
 
-  careGuidance.className = "care-guidance";
-  careGuidance.removeAttribute("aria-busy");
   const belowTarget = plans.filter(plan => plan.status === "shortfall");
-  const mixedMessage = belowTarget.length
-    ? `<p>${belowTarget.map(plan => plan.label).join(" and ")} is below £1m, so the spend-more suggestion applies only to the plan above the reserve.</p>`
-    : "";
-  careGuidance.innerHTML = `<div class="care-guidance__icon" aria-hidden="true">90</div><div><h3>You may be reserving more than ten years of care costs</h3><p>${balances}.</p>${mixedMessage}<p>${recommendations}</p><p>These are deterministic estimates, so retain additional margin if investment or care-cost uncertainty concerns you.</p></div>`;
+  const paragraphs = [interleave(balances, " · ").concat(".")];
+  if (belowTarget.length) {
+    paragraphs.push(`${belowTarget.map(plan => plan.label).join(" and ")} is below £1m, so the spend-more suggestion applies only to the plan above the reserve.`);
+  }
+  paragraphs.push(
+    interleave(recommendations, " ").flat(),
+    "These are deterministic estimates, so retain additional margin if investment or care-cost uncertainty concerns you."
+  );
+  updateCareGuidance(
+    "care-guidance",
+    false,
+    "You may be reserving more than ten years of care costs",
+    paragraphs
+  );
   return false;
+}
+
+function interleave(items, separator) {
+  return items.flatMap((item, index) => index === 0 ? [item] : [separator, item]);
+}
+
+function appendRichText(parent, parts) {
+  for (const part of Array.isArray(parts) ? parts.flat() : [parts]) {
+    if (typeof part === "string") {
+      parent.append(part);
+    } else {
+      const strong = document.createElement("strong");
+      strong.textContent = part.strong;
+      parent.appendChild(strong);
+    }
+  }
+}
+
+function updateCareGuidance(className, busy, title, paragraphs) {
+  careGuidance.className = className;
+  if (busy) careGuidance.setAttribute("aria-busy", "true");
+  else careGuidance.removeAttribute("aria-busy");
+
+  const icon = document.createElement("div");
+  icon.className = "care-guidance__icon";
+  icon.setAttribute("aria-hidden", "true");
+  icon.textContent = "90";
+
+  const content = document.createElement("div");
+  const heading = document.createElement("h3");
+  heading.textContent = title;
+  content.appendChild(heading);
+  for (const paragraphParts of paragraphs) {
+    const paragraph = document.createElement("p");
+    appendRichText(paragraph, paragraphParts);
+    content.appendChild(paragraph);
+  }
+  careGuidance.replaceChildren(icon, content);
 }
 
 function cancelCareGuidance() {
@@ -433,55 +508,120 @@ function renderTable(result) {
   const rateLabel = `${Math.round(result.rate * 100)}% drawdown`;
   const groupedRows = groupTableRows(result.rows);
   const maxPotTotal = Math.max(result.startingBalance, ...result.rows.map(row => row.balance), 1);
-  const openingRow = `<tr class="opening-row">
-      <td>Opening · ${result.startingYear}<small class="pot-note pot-note--opening">Retirement date</small></td>
-      <td>${result.startingAge}</td>
-      <td>—</td>
-      <td>${money.format(result.startingPension)}${result.pensionAvailableAtStart ? "" : '<small class="pot-note">Locked</small>'}</td>
-      <td>${money.format(result.startingAvailablePot)}</td>
-      <td class="pot-mix-cell">${renderPotMix(result.startingPots, result.startingBalance, maxPotTotal, 0)}</td>
-    </tr>`;
+  const openingRow = document.createElement("tr");
+  openingRow.className = "opening-row";
+  const openingYear = tableCell(`Opening · ${result.startingYear}`);
+  openingYear.appendChild(note("Retirement date", "pot-note pot-note--opening"));
+  const openingPension = tableCell(money.format(result.startingPension));
+  if (!result.pensionAvailableAtStart) openingPension.appendChild(note("Locked", "pot-note"));
+  const openingMix = tableCell();
+  openingMix.className = "pot-mix-cell";
+  openingMix.appendChild(renderPotMix(result.startingPots, result.startingBalance, maxPotTotal, 0));
+  openingRow.append(
+    openingYear,
+    tableCell(String(result.startingAge)),
+    tableCell("—"),
+    openingPension,
+    tableCell(money.format(result.startingAvailablePot)),
+    openingMix
+  );
+
   const projectedRows = groupedRows.map(group => {
     const row = group.end;
     const eventRow = group.start;
     const event = eventRow.pensionStarted || eventRow.inheritedThisYear || eventRow.stateStarted;
     const yearRange = group.start.year === row.year ? `${row.year}` : `${group.start.year}–${row.year}`;
     const ageRange = group.start.age === row.age ? `${row.age}` : `${group.start.age}–${row.age}`;
-    const eventTags = [
-      eventRow.pensionStarted ? '<span class="event-tag event-tag--pension">Private pensions</span>' : "",
-      eventRow.inheritedThisYear ? '<span class="event-tag event-tag--inheritance">Inheritance</span>' : "",
-      eventRow.stateStarted ? '<span class="event-tag event-tag--state">State Pension</span>' : ""
-    ].filter(Boolean).join("");
-    return `<tr class="${event ? "event-row" : ""}">
-      <td>${yearRange}${eventTags ? `<span class="event-tags">${eventTags}</span>` : ""}</td>
-      <td>${ageRange}</td>
-      <td>${money.format(row.netMonthly)}${row.stateOnly ? '<small class="income-note">State Pension only</small>' : ""}</td>
-      <td>${money.format(row.pensionBalance)}${row.pensionAvailable ? "" : '<small class="pot-note">Locked</small>'}</td>
-      <td class="${row.depleted ? "depleted" : ""}">${row.depleted ? "Depleted" : money.format(row.availablePot)}</td>
-      <td class="pot-mix-cell">${renderPotMix({ stocks: row.stocksBalance, isa: row.isaBalance, cash: row.cashBalance, pensionOne: row.pensionOneBalance, pensionTwo: row.pensionTwoBalance }, row.balance, maxPotTotal, row.stateIncome)}</td>
-    </tr>`;
-  }).join("");
-  const rows = openingRow + projectedRows;
+    const tableRow = document.createElement("tr");
+    if (event) tableRow.className = "event-row";
+
+    const yearCell = tableCell(yearRange);
+    const eventTags = document.createElement("span");
+    eventTags.className = "event-tags";
+    if (eventRow.pensionStarted) eventTags.appendChild(eventTag("Private pensions", "pension"));
+    if (eventRow.inheritedThisYear) eventTags.appendChild(eventTag("Inheritance", "inheritance"));
+    if (eventRow.stateStarted) eventTags.appendChild(eventTag("State Pension", "state"));
+    if (eventTags.childElementCount) yearCell.appendChild(eventTags);
+
+    const incomeCell = tableCell(money.format(row.netMonthly));
+    if (row.stateOnly) incomeCell.appendChild(note("State Pension only", "income-note"));
+    const pensionCell = tableCell(money.format(row.pensionBalance));
+    if (!row.pensionAvailable) pensionCell.appendChild(note("Locked", "pot-note"));
+    const availableCell = tableCell(row.depleted ? "Depleted" : money.format(row.availablePot));
+    if (row.depleted) availableCell.className = "depleted";
+    const mixCell = tableCell();
+    mixCell.className = "pot-mix-cell";
+    mixCell.appendChild(renderPotMix({
+      stocks: row.stocksBalance,
+      isa: row.isaBalance,
+      cash: row.cashBalance,
+      pensionOne: row.pensionOneBalance,
+      pensionTwo: row.pensionTwoBalance
+    }, row.balance, maxPotTotal, row.stateIncome));
+    tableRow.append(yearCell, tableCell(ageRange), incomeCell, pensionCell, availableCell, mixCell);
+    return tableRow;
+  });
 
   const depletedMessage = result.depletedAt
     ? `Funds first become insufficient in ${result.depletedAt.toLocaleDateString("en-GB", { month: "long", year: "numeric" })}.`
     : `Available pot ends with ${money.format(result.rows.at(-1).availablePot)} in today's money.`;
 
-  return `<article class="table-card">
-    <div class="table-card__heading">
-      <h3>${rateLabel}</h3>
-      <p>${depletedMessage} Grouped where income is unchanged; the available pot is at range end.</p>
-      <p>The available pot is stocks, ISA and cash before pension access, and includes pensions once unlocked · key events are colour coded</p>
-      <p>Pot mix bars: Stocks · ISA · Cash · Pension/SIPP 1 · Pension/SIPP 2. Withdrawals within each group are allocated proportionally.</p>
-    </div>
-    <div class="table-scroll">
-      <table>
-        <thead><tr><th>Year(s)</th><th>Age(s)</th><th>Net / month</th><th>Pension pot</th><th>Available pot</th><th>Pot mix</th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>
-    ${renderPotNarrative(result)}
-  </article>`;
+  const article = document.createElement("article");
+  article.className = "table-card";
+  const heading = document.createElement("div");
+  heading.className = "table-card__heading";
+  const title = document.createElement("h3");
+  title.textContent = rateLabel;
+  heading.append(
+    title,
+    paragraph(`${depletedMessage} Grouped where income is unchanged; the available pot is at range end.`),
+    paragraph("The available pot is stocks, ISA and cash before pension access, and includes pensions once unlocked · key events are colour coded"),
+    paragraph("Pot mix bars: Stocks · ISA · Cash · Pension/SIPP 1 · Pension/SIPP 2. Withdrawals within each group are allocated proportionally.")
+  );
+
+  const scroll = document.createElement("div");
+  scroll.className = "table-scroll";
+  const table = document.createElement("table");
+  const head = document.createElement("thead");
+  const headingRow = document.createElement("tr");
+  for (const label of ["Year(s)", "Age(s)", "Net / month", "Pension pot", "Available pot", "Pot mix"]) {
+    const cell = document.createElement("th");
+    cell.textContent = label;
+    headingRow.appendChild(cell);
+  }
+  head.appendChild(headingRow);
+  const body = document.createElement("tbody");
+  body.append(openingRow, ...projectedRows);
+  table.append(head, body);
+  scroll.appendChild(table);
+  article.append(heading, scroll, renderPotNarrative(result));
+  return article;
+}
+
+function tableCell(text = "") {
+  const cell = document.createElement("td");
+  cell.textContent = text;
+  return cell;
+}
+
+function paragraph(text) {
+  const element = document.createElement("p");
+  element.textContent = text;
+  return element;
+}
+
+function note(text, className) {
+  const element = document.createElement("small");
+  element.className = className;
+  element.textContent = text;
+  return element;
+}
+
+function eventTag(text, modifier) {
+  const element = document.createElement("span");
+  element.className = `event-tag event-tag--${modifier}`;
+  element.textContent = text;
+  return element;
 }
 
 function renderPotMix(pots, total, scale, stateIncome) {
@@ -493,13 +633,31 @@ function renderPotMix(pots, total, scale, stateIncome) {
     ["Company Pension / SIPP 2", "P2", pots.pensionTwo, "pension-two", scale],
     ["State Pension (annual)", "SP", stateIncome, "state", scale]
   ].filter(([, , value]) => value > 0.005);
-  if (entries.length === 0) return '<span class="pot-mix-empty">—</span>';
+  if (entries.length === 0) {
+    const empty = document.createElement("span");
+    empty.className = "pot-mix-empty";
+    empty.textContent = "—";
+    return empty;
+  }
   const description = entries.map(([label, , value]) => `${label} ${money.format(value)}`).join(", ");
-  const bars = entries.map(([label, shortLabel, value, colour, barScale]) => {
+  const bars = document.createElement("div");
+  bars.className = "pot-bars";
+  bars.style.setProperty("--bar-count", String(entries.length));
+  bars.setAttribute("role", "img");
+  bars.setAttribute("aria-label", `Pot mix at ${money.format(total)}: ${description}`);
+  for (const [label, shortLabel, value, colour, barScale] of entries) {
     const height = Math.min(100, Math.max(0, value / barScale * 100));
-    return `<span class="pot-bar pot-bar--${colour}" title="${label}: ${money.format(value)}"><i style="height:${height.toFixed(2)}%"></i><b>${shortLabel}</b></span>`;
-  }).join("");
-  return `<div class="pot-bars" style="--bar-count:${entries.length}" role="img" aria-label="Pot mix at ${money.format(total)}: ${description}">${bars}</div>`;
+    const bar = document.createElement("span");
+    bar.className = `pot-bar pot-bar--${colour}`;
+    bar.title = `${label}: ${money.format(value)}`;
+    const fill = document.createElement("i");
+    fill.style.height = `${height.toFixed(2)}%`;
+    const abbreviation = document.createElement("b");
+    abbreviation.textContent = shortLabel;
+    bar.append(fill, abbreviation);
+    bars.appendChild(bar);
+  }
+  return bars;
 }
 
 function renderPotNarrative(result) {
@@ -552,13 +710,23 @@ function renderPotNarrative(result) {
   items.push(`At the end of the projection, ${money.format(finalRow.accessibleBalance)} remains in stocks, ISA and cash, and ${money.format(finalRow.pensionBalance)} remains in pensions.`);
 
   if (result.depletedAt) {
-    items.push(`<strong>Income first becomes underfunded in ${result.depletedAt.toLocaleDateString("en-GB", { month: "long", year: "numeric" })}; the displayed target income is not fully delivered from that point unless later funds arrive.</strong>`);
+    items.push({
+      strong: `Income first becomes underfunded in ${result.depletedAt.toLocaleDateString("en-GB", { month: "long", year: "numeric" })}; the displayed target income is not fully delivered from that point unless later funds arrive.`
+    });
   }
 
-  return `<div class="pot-narrative">
-    <h4>How this path uses your pots</h4>
-    <ul>${items.map(item => `<li>${item}</li>`).join("")}</ul>
-  </div>`;
+  const narrative = document.createElement("div");
+  narrative.className = "pot-narrative";
+  const heading = document.createElement("h4");
+  heading.textContent = "How this path uses your pots";
+  const list = document.createElement("ul");
+  for (const item of items) {
+    const listItem = document.createElement("li");
+    appendRichText(listItem, item);
+    list.appendChild(listItem);
+  }
+  narrative.append(heading, list);
+  return narrative;
 }
 
 function groupTableRows(rows) {
@@ -814,9 +982,15 @@ canvas.addEventListener("pointermove", event => {
       const fourRow = chartGeometry.four.rows[index];
       const threeIncomeNote = threeRow.stateOnly ? " (State Pension only)" : "";
       const fourIncomeNote = fourRow.stateOnly ? " (State Pension only)" : "";
-  tooltip.innerHTML = `<strong>${threeRow.year} · age ${threeRow.age}</strong><br>` +
-    `3% available: ${money.format(threeRow.availablePot)} · total ${money.format(threeRow.balance)} · ${money.format(threeRow.netMonthly)}/month${threeIncomeNote}<br>` +
-    `4% available: ${money.format(fourRow.availablePot)} · total ${money.format(fourRow.balance)} · ${money.format(fourRow.netMonthly)}/month${fourIncomeNote}`;
+      const heading = document.createElement("strong");
+      heading.textContent = `${threeRow.year} · age ${threeRow.age}`;
+      tooltip.replaceChildren(
+        heading,
+        document.createElement("br"),
+        document.createTextNode(`3% available: ${money.format(threeRow.availablePot)} · total ${money.format(threeRow.balance)} · ${money.format(threeRow.netMonthly)}/month${threeIncomeNote}`),
+        document.createElement("br"),
+        document.createTextNode(`4% available: ${money.format(fourRow.availablePot)} · total ${money.format(fourRow.balance)} · ${money.format(fourRow.netMonthly)}/month${fourIncomeNote}`)
+      );
       tooltipIndex = index;
       tooltip.hidden = false;
       tooltipWidth = tooltip.offsetWidth;
