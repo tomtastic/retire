@@ -2,8 +2,6 @@
 
 const STORAGE_KEY = "retirement-drawdown-model-v1";
 const DEVELOPER_STORAGE_KEY = "developer";
-const LAYOUT_VARIANT_STORAGE_KEY = "retirement-drawdown-layout-variant-v2";
-const LEGACY_LAYOUT_VARIANT_STORAGE_KEY = "retirement-drawdown-layout-variant-v1";
 const {
   CARE_RESERVE_AGE,
   MAX_BOOST,
@@ -37,7 +35,6 @@ const developerTools = document.querySelector("#developer-tools");
 const saveDeveloperPresetButton = document.querySelector("#save-developer-preset");
 const removeDeveloperPresetButton = document.querySelector("#remove-developer-preset");
 const developerStatus = document.querySelector("#developer-status");
-const layoutVariantInputs = document.querySelectorAll('input[name="layout-variant"]');
 
 const fields = {
   birthDate: "birth-date",
@@ -77,38 +74,6 @@ let lockedTooltipIndex = -1;
 let boostLimitCacheKey = "";
 let boostLimitCacheValue = MAX_BOOST;
 let developerCloseTimer = null;
-
-/** Apply a valid layout experiment variant and keep its developer control in sync. */
-function applyLayoutVariant(variant) {
-  const selected = variant === "compact" ? "compact" : "comfortable";
-  document.documentElement.dataset.layoutVariant = selected;
-  for (const input of layoutVariantInputs) input.checked = input.value === selected;
-  return selected;
-}
-
-/** Restore the locally stored layout experiment choice, promoting the former Compact treatment to Comfortable. */
-function readLayoutVariant() {
-  try {
-    const saved = localStorage.getItem(LAYOUT_VARIANT_STORAGE_KEY);
-    if (saved) return applyLayoutVariant(saved);
-    if (localStorage.getItem(LEGACY_LAYOUT_VARIANT_STORAGE_KEY)) {
-      localStorage.setItem(LAYOUT_VARIANT_STORAGE_KEY, "comfortable");
-    }
-    return applyLayoutVariant("comfortable");
-  } catch {
-    return applyLayoutVariant("comfortable");
-  }
-}
-
-/** Persist an evaluator's layout choice without affecting financial data. */
-function saveLayoutVariant(variant) {
-  const selected = applyLayoutVariant(variant);
-  try {
-    localStorage.setItem(LAYOUT_VARIANT_STORAGE_KEY, selected);
-  } catch {
-    developerStatus.textContent = "Browser storage unavailable.";
-  }
-}
 
 const money = new Intl.NumberFormat("en-GB", {
   style: "currency",
@@ -1305,12 +1270,6 @@ document.addEventListener("pointerdown", event => {
   if (lockedTooltipIndex >= 0 && event.target !== canvas) dismissChartSelection();
 });
 
-for (const input of layoutVariantInputs) {
-  input.addEventListener("change", () => {
-    if (input.checked) saveLayoutVariant(input.value);
-  });
-}
-
 /** Collapse the developer preset controls shortly after an action completes. */
 function closeDeveloperToolsSoon() {
   clearTimeout(developerCloseTimer);
@@ -1370,6 +1329,5 @@ removeDeveloperPresetButton.addEventListener("click", () => {
   closeDeveloperToolsSoon();
 });
 
-readLayoutVariant();
 populateForm(readSavedValues());
 saveAndRender();

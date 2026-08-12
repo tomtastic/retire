@@ -166,25 +166,18 @@ test("hidden developer controls save the asset and inheritance preset", () => {
   assert.match(css, /\.developer-corner \{ position: fixed;[^}]*safe-area-inset-top[^}]*safe-area-inset-right[^}]*width: 56px; height: 56px/);
 });
 
-test("developer tools provide a persisted comfortable-versus-compact layout experiment", () => {
-  assert.match(html, /name="layout-variant" type="radio" value="comfortable"/);
-  assert.match(html, /name="layout-variant" type="radio" value="compact"/);
-  assert.match(html, /Compact reduces desktop and tablet spacing only/);
-  assert.match(app, /const LAYOUT_VARIANT_STORAGE_KEY = "retirement-drawdown-layout-variant-v2"/);
-  assert.match(app, /const LEGACY_LAYOUT_VARIANT_STORAGE_KEY = "retirement-drawdown-layout-variant-v1"/);
-  assert.match(app, /function applyLayoutVariant\(variant\)/);
-  assert.match(app, /document\.documentElement\.dataset\.layoutVariant = selected/);
-  assert.match(app, /localStorage\.getItem\(LAYOUT_VARIANT_STORAGE_KEY\)/);
-  assert.match(app, /localStorage\.setItem\(LAYOUT_VARIANT_STORAGE_KEY, selected\)/);
-  assert.match(app, /readLayoutVariant\(\);/);
+test("default layout retains the compact desktop treatment without an experiment switcher", () => {
+  assert.doesNotMatch(html, /layout-variant/);
+  assert.doesNotMatch(app, /LAYOUT_VARIANT/);
+  assert.doesNotMatch(css, /data-layout-variant/);
+  assert.match(css, /@media \(min-width: 601px\) \{[\s\S]*\.chart-wrap \{ height: 300px/);
+  assert.match(css, /\.inputs-panel \{ padding: clamp\(16px, 2vw, 24px\)/);
 });
 
-test("comfortable promotes the original compact spacing and Compact is tighter above mobile", () => {
-  assert.match(css, /@media \(min-width: 601px\) \{[\s\S]*\.chart-wrap \{ height: 350px/);
-  assert.match(css, /\.inputs-panel \{ padding: clamp\(20px, 3vw, 30px\)/);
-  assert.match(css, /:root\[data-layout-variant="compact"\] \.chart-wrap \{ height: 300px/);
-  assert.match(css, /:root\[data-layout-variant="compact"\] \.inputs-panel \{ padding: clamp\(16px, 2vw, 24px\)/);
-  assert.doesNotMatch(css, /@media \(max-width: 600px\)[\s\S]*data-layout-variant="compact"/);
+test("hero aligns privacy beside its eyebrow and uses a lighter longevity border", () => {
+  assert.match(html, /<div class="hero__intro">[\s\S]*UK retirement planning[\s\S]*privacy-note/);
+  assert.match(css, /\.hero__intro \{ display: flex; gap: 16px; align-items: center; \}/);
+  assert.match(css, /\.longevity-note \{[\s\S]*border-left: 2px solid #66d0a9/);
 });
 
 test("reset defaults includes the developer asset preset", () => {

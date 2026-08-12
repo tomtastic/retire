@@ -12,12 +12,6 @@
 <body>
   <button class="developer-corner" id="developer-corner" type="button" aria-label="Show developer preset controls" aria-expanded="false"></button>
   <aside class="developer-tools" id="developer-tools" hidden>
-    <fieldset class="layout-variant" aria-describedby="layout-variant-help">
-      <legend>Layout experiment</legend>
-      <label><input id="layout-comfortable" name="layout-variant" type="radio" value="comfortable"> Comfortable</label>
-      <label><input id="layout-compact" name="layout-variant" type="radio" value="compact"> Compact</label>
-      <small id="layout-variant-help">Compact reduces desktop and tablet spacing only.</small>
-    </fieldset>
     <div class="developer-actions">
       <button class="button button--quiet" id="save-developer-preset" type="button">Save to developer preset</button>
       <button class="button button--danger" id="remove-developer-preset" type="button">Remove developer preset</button>
@@ -27,9 +21,11 @@
   <header class="hero">
     <div class="hero__orb hero__orb--blue" aria-hidden="true"></div>
     <div class="hero__inner">
-      <p class="eyebrow">UK retirement planning</p>
+      <div class="hero__intro">
+        <p class="eyebrow">UK retirement planning</p>
+        <p class="privacy-note"><span aria-hidden="true">●</span> Your figures stay in this browser and are never uploaded.</p>
+      </div>
       <p class="hero__copy">Compare inflation-adjusted 3% and 4% drawdown plans, including pension tax, State Pension and an optional inheritance.</p>
-      <p class="privacy-note"><span aria-hidden="true">●</span> Your figures stay in this browser and are never uploaded.</p>
       <aside class="longevity-note">
         <strong>Plan for longevity, but keep it in proportion.</strong>
         In 2024, only 16,600 UK residents were aged 100 or over—about 1 in 4,200 people. ONS cohort mortality tables give a current 48-year-old approximately a 4.3% chance for men and 8.7% for women of reaching 100. This planner therefore uses £1m remaining at age 90 as a generous care reserve: ten years at the assumed £100k annual full-time-care cost.
