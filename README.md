@@ -1,4 +1,4 @@
-<h1><img src="favicon.svg" alt="" width="32" height="32" valign="middle"> Retire - Drawdown Modeller</h1>
+<h1><img src="favicon.svg" alt="" width="32" height="32" style="vertical-align: 0.08em;"> Retire - Drawdown Modeller</h1>
 
 [![CI and deploy](https://github.com/tomtastic/retire/actions/workflows/pages.yml/badge.svg?branch=main)](https://github.com/tomtastic/retire/actions/workflows/pages.yml?query=branch%3Amain)
 [![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/tomtastic/retire/coverage/coverage.json)](https://github.com/tomtastic/retire/actions/workflows/pages.yml)
