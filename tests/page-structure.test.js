@@ -60,11 +60,11 @@ test("both people receive the same accessible early-income slider and preview", 
   assert.match(css, /\.range-input input\[type="range"\] \{ min-height: 44px; \}/);
 });
 
-test("empty USA asset profiles display numeric zero balances", () => {
-  for (const key of ["account401k", "traditionalIRA", "rothIRA", "taxableBrokerage"]) {
-    assert.match(app, new RegExp(`${key}: byType`));
-  }
-  assert.equal((app.match(/\?\? 0/g) || []).length >= 4, true);
+test("empty initial assets use optional zero placeholders and model as zero", () => {
+  assert.match(app, /moneyInput\(context, key, \{ placeholder: "0", dataset: \{ asset: "true" \} \}\)/);
+  assert.match(app, /control\.dataset\.asset === "true" \? 0 : null/);
+  assert.match(app, /control\.dataset\.asset === "true" && Number\(value\) === 0 \? "" : value/);
+  assert.doesNotMatch(app, /moneyInput\(context, key, \{ required: true \}\)/);
 });
 
 test("early-income increases are blocked when the 3% bridge becomes unsafe", () => {

@@ -225,7 +225,9 @@ function configureCountryFields(context, country) {
     if (!["country", "birthDate", "retirementDate", "horizon", "inheritanceYear", "inheritanceAmount", "boostUntilAge", "boost"].includes(key)) delete context.inputs[key];
   }
   context.assetsGrid.replaceChildren();
-  for (const [key, label] of ACCOUNT_META[country]) context.assetsGrid.append(fieldLabel(label, moneyInput(context, key, { required: true })));
+  for (const [key, label] of ACCOUNT_META[country]) {
+    context.assetsGrid.append(fieldLabel(label, moneyInput(context, key, { placeholder: "0", dataset: { asset: "true" } })));
+  }
   context.assumptionsGrid.replaceChildren(
     fieldLabel("Real annual return", suffixInput(context, "realReturn", "%", { min: "-10", max: "20", step: "0.1", required: true })),
     fieldLabel("Annual inflation", suffixInput(context, "inflation", "%", { min: "0", max: "20", step: "0.1", required: true }))
@@ -262,7 +264,11 @@ function formValues(context) {
   const values = { country: context.profileCountry };
   for (const [key, control] of Object.entries(context.inputs)) {
     if (key === "country") continue;
-    values[key] = control.type === "date" ? control.value : control.value === "" ? null : Number(control.value);
+    values[key] = control.type === "date"
+      ? control.value
+      : control.value === ""
+        ? (control.dataset.asset === "true" ? 0 : null)
+        : Number(control.value);
   }
   if (values.country === "USA") {
     values.accounts = [
@@ -286,7 +292,10 @@ function populateForm(context, rawValues) {
   };
   for (const [key, control] of Object.entries(context.inputs)) {
     if (key === "country") control.value = context.profileCountry;
-    else control.value = aliases[key] ?? values[key] ?? "";
+    else {
+      const value = aliases[key] ?? values[key] ?? "";
+      control.value = control.dataset.asset === "true" && Number(value) === 0 ? "" : value;
+    }
   }
   context.boostOutput.value = `${context.inputs.boost.value}%`;
   context.boostOutput.textContent = `${context.inputs.boost.value}%`;
