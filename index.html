@@ -2,16 +2,22 @@
 <html lang="en-GB">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="description" content="A private, dependency-free UK retirement drawdown modeller.">
   <title>Retirement Drawdown Modeller</title>
+  <link rel="icon" href="data:,">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <p class="width-note" id="width-note">Best viewed at a window width of at least 1450px to avoid horizontal scrolling.</p>
   <button class="developer-corner" id="developer-corner" type="button" aria-label="Show developer preset controls" aria-expanded="false"></button>
   <aside class="developer-tools" id="developer-tools" hidden>
+    <fieldset class="layout-variant" aria-describedby="layout-variant-help">
+      <legend>Layout experiment</legend>
+      <label><input id="layout-comfortable" name="layout-variant" type="radio" value="comfortable"> Comfortable</label>
+      <label><input id="layout-compact" name="layout-variant" type="radio" value="compact"> Compact</label>
+      <small id="layout-variant-help">Compact reduces desktop and tablet spacing only.</small>
+    </fieldset>
     <div class="developer-actions">
       <button class="button button--quiet" id="save-developer-preset" type="button">Save to developer preset</button>
       <button class="button button--danger" id="remove-developer-preset" type="button">Remove developer preset</button>
@@ -140,6 +146,7 @@
           <div>
             <h3>Available pot</h3>
             <p>Year-end money available to withdraw in retirement-year pounds · dotted lines use a 1% real return</p>
+            <p class="chart-instructions" id="chart-instructions">Tap a year to keep its details open. With the chart focused, use Left/Right, Home, End, or Escape.</p>
           </div>
           <div class="legend" aria-hidden="true">
             <span><i class="legend__line legend__line--three"></i>3% drawdown</span>
@@ -148,9 +155,10 @@
           </div>
         </div>
         <div class="chart-wrap">
-          <canvas id="balance-chart" role="img" aria-label="Line chart comparing available pots for 3 and 4 percent drawdown scenarios at the selected return and a 1 percent real-return downside, with markers for private pension access, inheritance and State Pension"></canvas>
+          <canvas id="balance-chart" tabindex="0" role="img" aria-label="Line chart comparing available pots for 3 and 4 percent drawdown scenarios at the selected return and a 1 percent real-return downside, with markers for private pension access, inheritance and State Pension" aria-describedby="chart-instructions chart-details"></canvas>
           <div class="chart-tooltip" id="chart-tooltip" hidden></div>
         </div>
+        <p class="chart-details" id="chart-details" aria-live="polite">No chart year selected.</p>
       </article>
 
       <div class="tables-grid" id="tables-grid"></div>

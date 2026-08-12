@@ -2,6 +2,7 @@
 
 const STORAGE_KEY = "retirement-drawdown-model-v1";
 const DEVELOPER_STORAGE_KEY = "developer";
+const LAYOUT_VARIANT_STORAGE_KEY = "retirement-drawdown-layout-variant-v1";
 const {
   CARE_RESERVE_AGE,
   MAX_BOOST,
@@ -26,6 +27,7 @@ const tablesGrid = document.querySelector("#tables-grid");
 const basis = document.querySelector("#projection-basis");
 const canvas = document.querySelector("#balance-chart");
 const tooltip = document.querySelector("#chart-tooltip");
+const chartDetails = document.querySelector("#chart-details");
 const boostOutput = document.querySelector("#boost-output");
 const boostInput = document.querySelector("#boost");
 const boostLimitNote = document.querySelector("#boost-limit-note");
@@ -34,6 +36,7 @@ const developerTools = document.querySelector("#developer-tools");
 const saveDeveloperPresetButton = document.querySelector("#save-developer-preset");
 const removeDeveloperPresetButton = document.querySelector("#remove-developer-preset");
 const developerStatus = document.querySelector("#developer-status");
+const layoutVariantInputs = document.querySelectorAll('input[name="layout-variant"]');
 
 const fields = {
   birthDate: "birth-date",
@@ -69,10 +72,37 @@ let careVersion = 0;
 let pointerFrame = null;
 let pendingPointer = null;
 let tooltipIndex = -1;
-let tooltipWidth = 0;
+let lockedTooltipIndex = -1;
 let boostLimitCacheKey = "";
 let boostLimitCacheValue = MAX_BOOST;
 let developerCloseTimer = null;
+
+/** Apply a valid layout experiment variant and keep its developer control in sync. */
+function applyLayoutVariant(variant) {
+  const selected = variant === "compact" ? "compact" : "comfortable";
+  document.documentElement.dataset.layoutVariant = selected;
+  for (const input of layoutVariantInputs) input.checked = input.value === selected;
+  return selected;
+}
+
+/** Restore the locally stored layout experiment choice, falling back to Comfortable. */
+function readLayoutVariant() {
+  try {
+    return applyLayoutVariant(localStorage.getItem(LAYOUT_VARIANT_STORAGE_KEY));
+  } catch {
+    return applyLayoutVariant("comfortable");
+  }
+}
+
+/** Persist an evaluator's layout choice without affecting financial data. */
+function saveLayoutVariant(variant) {
+  const selected = applyLayoutVariant(variant);
+  try {
+    localStorage.setItem(LAYOUT_VARIANT_STORAGE_KEY, selected);
+  } catch {
+    developerStatus.textContent = "Browser storage unavailable.";
+  }
+}
 
 const money = new Intl.NumberFormat("en-GB", {
   style: "currency",
@@ -675,6 +705,11 @@ function renderTable(result) {
 
   const scroll = document.createElement("div");
   scroll.className = "table-scroll";
+  scroll.tabIndex = 0;
+  scroll.setAttribute("role", "region");
+  scroll.setAttribute("aria-label", `${rateLabel} projection table; scroll horizontally to see all columns`);
+  const scrollHint = paragraph("Swipe horizontally to see all columns");
+  scrollHint.className = "table-scroll-hint";
   const table = document.createElement("table");
   const head = document.createElement("thead");
   const headingRow = document.createElement("tr");
@@ -688,7 +723,7 @@ function renderTable(result) {
   body.append(openingRow, ...projectedRows);
   table.append(head, body);
   scroll.appendChild(table);
-  article.append(heading, scroll, renderPotNarrative(result));
+  article.append(heading, scrollHint, scroll, renderPotNarrative(result));
   return article;
 }
 
@@ -958,9 +993,9 @@ function drawChart(three, four, downsideThree, downsideFour, values) {
   plotLine(ctx, four.rows, xFor, yFor, "#dc6f3d", [], 3, "availablePot");
 
   const eventMarkers = [
-    { index: three.rows.findIndex(row => row.pensionStarted), label: "Private pensions", colour: "#416b9a" },
+    { index: three.rows.findIndex(row => row.pensionStarted), label: width < 520 ? "Pensions" : "Private pensions", colour: "#416b9a" },
     { index: three.rows.findIndex(row => row.inheritedThisYear), label: "Inheritance", colour: "#8a7460" },
-    { index: three.rows.findIndex(row => row.stateStarted), label: "State Pension", colour: "#765a96" }
+    { index: three.rows.findIndex(row => row.stateStarted), label: width < 520 ? "State" : "State Pension", colour: "#765a96" }
   ].filter(marker => marker.index >= 0);
 
   eventMarkers.forEach((marker, markerIndex) => {
@@ -983,9 +1018,73 @@ function drawChart(three, four, downsideThree, downsideFour, values) {
     ctx.restore();
   });
 
-  chartGeometry = { xFor, pad, plotWidth, rows: three.rows, three, four, downsideThree, downsideFour, width, height };
+  chartGeometry = { xFor, yFor, pad, plotWidth, rows: three.rows, three, four, downsideThree, downsideFour, width, height };
+  dismissChartSelection();
+}
+
+/** Return the nearest plotted year for a viewport x-coordinate. */
+function nearestChartIndex(clientX) {
+  if (!chartGeometry) return -1;
+  const rect = canvas.getBoundingClientRect();
+  const relative = (clientX - rect.left - chartGeometry.pad.left) / chartGeometry.plotWidth;
+  const index = Math.round(relative * (chartGeometry.rows.length - 1));
+  return index >= 0 && index < chartGeometry.rows.length ? index : -1;
+}
+
+/** Build the visible and announced details for one chart year. */
+function chartSelection(index) {
+  const threeRow = chartGeometry.three.rows[index];
+  const fourRow = chartGeometry.four.rows[index];
+  const threeIncomeNote = threeRow.stateOnly ? " (State Pension only)" : "";
+  const fourIncomeNote = fourRow.stateOnly ? " (State Pension only)" : "";
+  const heading = `${threeRow.year} · age ${threeRow.age}`;
+  const threeText = `3% available: ${money.format(threeRow.availablePot)} · total ${money.format(threeRow.balance)} · ${money.format(threeRow.netMonthly)}/month${threeIncomeNote}`;
+  const fourText = `4% available: ${money.format(fourRow.availablePot)} · total ${money.format(fourRow.balance)} · ${money.format(fourRow.netMonthly)}/month${fourIncomeNote}`;
+  return { heading, threeText, fourText, threeRow, fourRow };
+}
+
+/** Clamp and place the chart tooltip above its point, or below when space is tight. */
+function positionChartTooltip(index) {
+  const { threeRow, fourRow } = chartSelection(index);
+  const anchorX = chartGeometry.xFor(index);
+  const anchorY = Math.min(chartGeometry.yFor(threeRow.availablePot), chartGeometry.yFor(fourRow.availablePot));
+  const tooltipWidth = tooltip.offsetWidth;
+  const tooltipHeight = tooltip.offsetHeight;
+  const left = Math.min(chartGeometry.width - tooltipWidth - 8, Math.max(8, anchorX - tooltipWidth / 2));
+  const above = anchorY - tooltipHeight - 12;
+  const below = Math.min(chartGeometry.height - tooltipHeight - 8, anchorY + 12);
+  tooltip.style.left = `${Math.max(8, left)}px`;
+  tooltip.style.top = `${Math.max(8, above >= 8 ? above : below)}px`;
+}
+
+/** Render a transient or locked chart selection and optionally announce it. */
+function showChartSelection(index, announce = false) {
+  if (!chartGeometry || index < 0 || index >= chartGeometry.rows.length) return;
+  const selection = chartSelection(index);
+  if (index !== tooltipIndex) {
+    const heading = document.createElement("strong");
+    heading.textContent = selection.heading;
+    tooltip.replaceChildren(
+      heading,
+      document.createElement("br"),
+      document.createTextNode(selection.threeText),
+      document.createElement("br"),
+      document.createTextNode(selection.fourText)
+    );
+    tooltipIndex = index;
+  }
+  tooltip.hidden = false;
+  positionChartTooltip(index);
+  if (announce) chartDetails.textContent = `${selection.heading}. ${selection.threeText}. ${selection.fourText}.`;
+}
+
+/** Clear locked and transient chart details. */
+function dismissChartSelection() {
+  lockedTooltipIndex = -1;
   tooltipIndex = -1;
+  pendingPointer = null;
   tooltip.hidden = true;
+  chartDetails.textContent = "No chart year selected.";
 }
 
 /**
@@ -1137,55 +1236,74 @@ window.addEventListener("resize", () => {
   if (resizeFrame != null) cancelAnimationFrame(resizeFrame);
   resizeFrame = requestAnimationFrame(() => {
     resizeFrame = null;
-    drawChart(currentResults.three, currentResults.four, currentResults.downsideThree, currentResults.downsideFour);
+    drawChart(currentResults.three, currentResults.four, currentResults.downsideThree, currentResults.downsideFour, currentResults.values);
   });
 });
 
 canvas.addEventListener("pointermove", event => {
+  if (event.pointerType === "touch" || lockedTooltipIndex >= 0) return;
   pendingPointer = { clientX: event.clientX, clientY: event.clientY };
   if (!chartGeometry || pointerFrame != null) return;
   pointerFrame = requestAnimationFrame(() => {
     pointerFrame = null;
-    if (!pendingPointer || !chartGeometry) return;
-    const rect = canvas.getBoundingClientRect();
-    const x = pendingPointer.clientX - rect.left;
-    const relative = (x - chartGeometry.pad.left) / chartGeometry.plotWidth;
-    const index = Math.round(relative * (chartGeometry.rows.length - 1));
+    if (!pendingPointer || !chartGeometry || lockedTooltipIndex >= 0) return;
+    const index = nearestChartIndex(pendingPointer.clientX);
     if (index < 0 || index >= chartGeometry.rows.length) {
       tooltip.hidden = true;
       return;
     }
-    if (index !== tooltipIndex) {
-      const threeRow = chartGeometry.three.rows[index];
-      const fourRow = chartGeometry.four.rows[index];
-      const threeIncomeNote = threeRow.stateOnly ? " (State Pension only)" : "";
-      const fourIncomeNote = fourRow.stateOnly ? " (State Pension only)" : "";
-      const heading = document.createElement("strong");
-      heading.textContent = `${threeRow.year} · age ${threeRow.age}`;
-      tooltip.replaceChildren(
-        heading,
-        document.createElement("br"),
-        document.createTextNode(`3% available: ${money.format(threeRow.availablePot)} · total ${money.format(threeRow.balance)} · ${money.format(threeRow.netMonthly)}/month${threeIncomeNote}`),
-        document.createElement("br"),
-        document.createTextNode(`4% available: ${money.format(fourRow.availablePot)} · total ${money.format(fourRow.balance)} · ${money.format(fourRow.netMonthly)}/month${fourIncomeNote}`)
-      );
-      tooltipIndex = index;
-      tooltip.hidden = false;
-      tooltipWidth = tooltip.offsetWidth;
-    }
-    tooltip.style.top = `${Math.max(80, pendingPointer.clientY - rect.top)}px`;
-    tooltip.hidden = false;
-    const halfTooltip = tooltipWidth / 2;
-    const tooltipX = Math.min(chartGeometry.width - halfTooltip - 8, Math.max(halfTooltip + 8, chartGeometry.xFor(index)));
-    tooltip.style.left = `${tooltipX}px`;
+    showChartSelection(index);
   });
 });
 
 canvas.addEventListener("pointerleave", () => {
   pendingPointer = null;
+  if (lockedTooltipIndex >= 0) return;
   tooltipIndex = -1;
   tooltip.hidden = true;
 });
+
+canvas.addEventListener("pointerup", event => {
+  if (!event.isPrimary || (event.pointerType === "mouse" && event.button !== 0)) return;
+  const index = nearestChartIndex(event.clientX);
+  if (index < 0) return;
+  if (lockedTooltipIndex === index) {
+    dismissChartSelection();
+    return;
+  }
+  lockedTooltipIndex = index;
+  showChartSelection(index, true);
+});
+
+canvas.addEventListener("keydown", event => {
+  if (!chartGeometry) return;
+  let index = lockedTooltipIndex;
+  if (event.key === "Escape") {
+    if (index >= 0) {
+      event.preventDefault();
+      dismissChartSelection();
+    }
+    return;
+  }
+  if (event.key === "Home") index = 0;
+  else if (event.key === "End") index = chartGeometry.rows.length - 1;
+  else if (event.key === "ArrowLeft") index = index < 0 ? chartGeometry.rows.length - 1 : Math.max(0, index - 1);
+  else if (event.key === "ArrowRight") index = index < 0 ? 0 : Math.min(chartGeometry.rows.length - 1, index + 1);
+  else return;
+  event.preventDefault();
+  lockedTooltipIndex = index;
+  showChartSelection(index, true);
+});
+
+document.addEventListener("pointerdown", event => {
+  if (lockedTooltipIndex >= 0 && event.target !== canvas) dismissChartSelection();
+});
+
+for (const input of layoutVariantInputs) {
+  input.addEventListener("change", () => {
+    if (input.checked) saveLayoutVariant(input.value);
+  });
+}
 
 /** Collapse the developer preset controls shortly after an action completes. */
 function closeDeveloperToolsSoon() {
@@ -1246,5 +1364,6 @@ removeDeveloperPresetButton.addEventListener("click", () => {
   closeDeveloperToolsSoon();
 });
 
+readLayoutVariant();
 populateForm(readSavedValues());
 saveAndRender();

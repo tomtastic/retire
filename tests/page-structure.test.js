@@ -115,10 +115,25 @@ test("projection tables show their full vertical height", () => {
   assert.doesNotMatch(css, /\.table-scroll \{ max-height: 620px/);
 });
 
-test("narrow windows receive a minimum-width guidance note", () => {
-  assert.match(html, /id="width-note"/);
-  assert.match(html, /at least 1450px/);
-  assert.match(css, /@media \(max-width: 1449px\)[\s\S]*\.width-note \{ display: block; \}/);
+test("mobile layout uses safe areas without desktop-width guidance", () => {
+  assert.match(html, /width=device-width, initial-scale=1, viewport-fit=cover/);
+  assert.doesNotMatch(html, /id="width-note"/);
+  assert.doesNotMatch(css, /\.width-note/);
+  assert.match(css, /env\(safe-area-inset-left\)/);
+  assert.match(css, /env\(safe-area-inset-right\)/);
+  assert.match(css, /env\(safe-area-inset-top\)/);
+  assert.match(css, /env\(safe-area-inset-bottom\)/);
+  assert.match(css, /@media \(max-width: 360px\)/);
+  assert.doesNotMatch(css, /\.hero__inner \{ padding: [^;}]+;/);
+  assert.doesNotMatch(css, /footer \{ padding: [^;}]+;/);
+  assert.doesNotMatch(css, /\b\d+(?:\.\d+)?(?:d|s|l)?vh\b/);
+});
+
+test("mobile form controls and annotations are comfortably sized", () => {
+  assert.match(css, /@media \(max-width: 600px\)[\s\S]*input, \.range-input output \{ font-size: 1rem; \}/);
+  assert.match(css, /\.range-input input\[type="range"\] \{ min-height: 44px; \}/);
+  assert.match(css, /\.form-actions \.button \{ width: 100%; \}/);
+  assert.match(css, /\.income-note, \.pot-note, \.event-tag \{ font-size: \.75rem; \}/);
 });
 
 test("zero asset defaults can be populated from the read-only developer preset", () => {
@@ -144,7 +159,26 @@ test("hidden developer controls save the asset and inheritance preset", () => {
   assert.match(app, /function closeDeveloperToolsSoon\(\)[\s\S]*setTimeout[\s\S]*developerTools\.hidden = true/);
   assert.match(app, /developerStatus\.textContent = ""/);
   assert.match(css, /\.developer-tools\[hidden\] \{ display: none; \}/);
-  assert.match(css, /\.developer-corner \{ position: fixed;[^}]*top: -24px; right: -24px; width: 56px; height: 56px/);
+  assert.match(css, /\.developer-corner \{ position: fixed;[^}]*safe-area-inset-top[^}]*safe-area-inset-right[^}]*width: 56px; height: 56px/);
+});
+
+test("developer tools provide a persisted comfortable-versus-compact layout experiment", () => {
+  assert.match(html, /name="layout-variant" type="radio" value="comfortable"/);
+  assert.match(html, /name="layout-variant" type="radio" value="compact"/);
+  assert.match(html, /Compact reduces desktop and tablet spacing only/);
+  assert.match(app, /const LAYOUT_VARIANT_STORAGE_KEY = "retirement-drawdown-layout-variant-v1"/);
+  assert.match(app, /function applyLayoutVariant\(variant\)/);
+  assert.match(app, /document\.documentElement\.dataset\.layoutVariant = selected/);
+  assert.match(app, /localStorage\.getItem\(LAYOUT_VARIANT_STORAGE_KEY\)/);
+  assert.match(app, /localStorage\.setItem\(LAYOUT_VARIANT_STORAGE_KEY, selected\)/);
+  assert.match(app, /readLayoutVariant\(\);/);
+});
+
+test("compact layout reduces desktop and tablet spacing without changing the mobile layout", () => {
+  assert.match(css, /@media \(min-width: 601px\) \{[\s\S]*:root\[data-layout-variant="compact"\] \.hero__inner/);
+  assert.match(css, /:root\[data-layout-variant="compact"\] \.chart-wrap \{ height: 350px/);
+  assert.match(css, /:root\[data-layout-variant="compact"\] \.inputs-panel \{ padding: clamp\(20px, 3vw, 30px\)/);
+  assert.doesNotMatch(css, /@media \(max-width: 600px\)[\s\S]*data-layout-variant="compact"/);
 });
 
 test("reset defaults includes the developer asset preset", () => {
@@ -188,6 +222,29 @@ test("chart plots available pot and keeps total balance in hover context", () =>
   assert.match(app, /3% available:[\s\S]*total \$\{money\.format\(threeRow\.balance\)\}/);
   assert.match(app, /drawHigherIncomeBand\(ctx, three, xFor, height, pad, values\)/);
   assert.match(app, /fillText\("Higher income"/);
+});
+
+test("chart supports touch locking, keyboard navigation, and safe redraw", () => {
+  assert.match(html, /id="balance-chart" tabindex="0"/);
+  assert.match(html, /aria-describedby="chart-instructions chart-details"/);
+  assert.match(html, /id="chart-details" aria-live="polite"/);
+  assert.match(app, /function nearestChartIndex\(clientX\)/);
+  assert.match(app, /function showChartSelection\(index, announce = false\)/);
+  assert.match(app, /function positionChartTooltip\(index\)/);
+  assert.match(app, /canvas\.addEventListener\("pointerup"/);
+  assert.match(app, /event\.pointerType === "mouse" && event\.button !== 0/);
+  for (const key of ["ArrowLeft", "ArrowRight", "Home", "End", "Escape"]) assert.match(app, new RegExp(`event\\.key === "${key}"`));
+  assert.match(app, /drawChart\(currentResults\.three, currentResults\.four, currentResults\.downsideThree, currentResults\.downsideFour, currentResults\.values\)/);
+  assert.doesNotMatch(css, /touch-action:\s*none/);
+});
+
+test("projection tables advertise contained horizontal scrolling", () => {
+  assert.match(app, /Swipe horizontally to see all columns/);
+  assert.match(app, /scroll\.tabIndex = 0/);
+  assert.match(app, /scroll\.setAttribute\("role", "region"\)/);
+  assert.match(app, /`\$\{rateLabel\} projection table; scroll horizontally/);
+  assert.match(css, /\.table-scroll \{ max-height: none; overflow-x: auto; \}/);
+  assert.match(css, /@media \(max-width: 600px\)[\s\S]*\.table-scroll-hint \{ display: block; \}/);
 });
 
 test("each table includes a dynamic pot-depletion narrative", () => {

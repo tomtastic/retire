@@ -7,6 +7,10 @@ A private, dependency-free UK retirement drawdown modeller. Open `index.html` lo
 
 All calculations run in the browser; user figures are stored locally and are not uploaded.
 
+## Design guidance
+
+See the [Mobile Design Guide](MOBILE_DESIGN_GUIDE.md) for the project's iPhone design ambitions, implementation requirements, and release checklist.
+
 ## Native browser features
 
 - Semantic HTML5 form controls, validation, accessible labels, live status text, and a `<canvas>` chart.
