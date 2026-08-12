@@ -21,11 +21,11 @@ See the [Mobile Design Guide](MOBILE_DESIGN_GUIDE.md) for the project's iPhone d
 
 ## Native browser features
 
-- Semantic HTML5 form controls, validation, accessible labels, live status text, and a `<canvas>` chart.
-- Modern CSS with custom properties, Grid, Flexbox, responsive media queries, and native tooltips/hover states.
-- Vanilla JavaScript only, loaded as classic browser scripts; calculations use plain objects and functions, `Intl.NumberFormat` for UK currency, and the Canvas 2D API for graphs.
-- `localStorage` preserves user settings and the optional developer preset; `requestAnimationFrame`, `requestIdleCallback`, and debounced timers keep interactive rendering responsive.
-- No runtime dependencies, frameworks, trackers, or build step.
+- Semantic HTML5 form controls, native validation, accessible labels, live status text, keyboard-friendly chart navigation, and a Canvas 2D projection chart.
+- Responsive CSS using custom properties, Grid, Flexbox, safe-area insets, and contained horizontal scrolling for wide projection tables.
+- Vanilla JavaScript calculates the model in the browser, formats UK currency with `Intl.NumberFormat`, and supports touch, pointer, keyboard, and reduced-motion preferences.
+- Fast by design: no runtime dependencies, frameworks, trackers, network requests, or build step; rendering is coalesced with `requestAnimationFrame`, while heavier care guidance work is deferred until the browser is idle.
+- `localStorage` keeps user settings and the optional developer preset on the device; figures are never uploaded.
 
 ## Testing
 Run the tests with:
