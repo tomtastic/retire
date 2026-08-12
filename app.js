@@ -208,12 +208,16 @@ function render(values) {
   const accessible = values.stocks + values.isa + values.cash;
   basis.textContent = `${money.format(total)} starting portfolio · ${values.realReturn}% real return · ${values.horizon} years`;
 
-  summaryGrid.innerHTML = [
-    summaryCard("Starting portfolio", money.format(total), `${money.format(accessible)} in stocks, ISA & cash · ${money.format(values.pensionOne + values.pensionTwo)} in pensions`),
+  summaryGrid.replaceChildren(
+    summaryCard("Starting portfolio", money.format(total), {
+      main: `${money.format(accessible)} in stocks, ISA & cash · ${money.format(values.pensionOne + values.pensionTwo)} in pensions`
+    }),
     summaryCard("3% plan · end balance", money.format(three.rows.at(-1).balance), annualDrawDetail(values, three), "three", downsideWarning(downsideThree)),
     summaryCard("4% plan · end balance", money.format(four.rows.at(-1).balance), annualDrawDetail(values, four), "four", downsideWarning(downsideFour)),
-    summaryCard("Inheritance", values.inheritanceAmount ? money.format(values.inheritanceAmount) : "None", values.inheritanceAmount ? `Nominal amount in ${values.inheritanceYear}` : "No inheritance included")
-  ].join("");
+    summaryCard("Inheritance", values.inheritanceAmount ? money.format(values.inheritanceAmount) : "None", {
+      main: values.inheritanceAmount ? `Nominal amount in ${values.inheritanceYear}` : "No inheritance included"
+    })
+  );
 
   renderEarlyIncomePreview(values, three, four);
   const needsCareRecommendation = renderCareGuidance(values, three, four, false);
@@ -226,9 +230,12 @@ function annualDrawDetail(values, result) {
   const standard = `${money.format(result.baseAnnualIncome)} standard annual draw`;
   const retirementAge = ageAt(parseLocalDate(values.retirementDate), parseLocalDate(values.birthDate));
   const earlyPhaseActive = retirementAge < values.boostUntilAge && values.boost > 0;
-  if (!earlyPhaseActive) return standard;
+  if (!earlyPhaseActive) return { main: standard };
   const higher = result.baseAnnualIncome * (1 + values.boost / 100);
-  return `${standard}<br><span class="summary-card__early-income">${money.format(higher)} higher early annual draw until age ${values.boostUntilAge}</span>`;
+  return {
+    main: standard,
+    early: `${money.format(higher)} higher early annual draw until age ${values.boostUntilAge}`
+  };
 }
 
 function downsideWarning(result) {
@@ -237,12 +244,42 @@ function downsideWarning(result) {
 }
 
 function summaryCard(label, value, detail, colour = "", warning = "") {
-  return `<article class="summary-card ${colour ? `summary-card--${colour}` : ""}${warning ? " summary-card--warning" : ""}">
-    <span class="summary-card__label">${label}</span>
-    <div class="summary-card__value">${value}</div>
-    <p class="summary-card__detail">${detail}</p>
-    ${warning ? `<p class="summary-card__warning"><strong>1% worst-case risk</strong>${warning}</p>` : ""}
-  </article>`;
+  const article = document.createElement("article");
+  article.className = `summary-card${colour ? ` summary-card--${colour}` : ""}${warning ? " summary-card--warning" : ""}`;
+
+  const labelEl = document.createElement("span");
+  labelEl.className = "summary-card__label";
+  labelEl.textContent = label;
+  article.appendChild(labelEl);
+
+  const valueEl = document.createElement("div");
+  valueEl.className = "summary-card__value";
+  valueEl.textContent = value;
+  article.appendChild(valueEl);
+
+  const detailEl = document.createElement("p");
+  detailEl.className = "summary-card__detail";
+  detailEl.textContent = detail.main;
+  if (detail.early) {
+    detailEl.appendChild(document.createElement("br"));
+    const earlyEl = document.createElement("span");
+    earlyEl.className = "summary-card__early-income";
+    earlyEl.textContent = detail.early;
+    detailEl.appendChild(earlyEl);
+  }
+  article.appendChild(detailEl);
+
+  if (warning) {
+    const warningEl = document.createElement("p");
+    warningEl.className = "summary-card__warning";
+    const strongEl = document.createElement("strong");
+    strongEl.textContent = "1% worst-case risk";
+    warningEl.appendChild(strongEl);
+    warningEl.appendChild(document.createTextNode(warning));
+    article.appendChild(warningEl);
+  }
+
+  return article;
 }
 
 function renderEarlyIncomePreview(values, three, four) {
