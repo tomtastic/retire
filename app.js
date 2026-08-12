@@ -2,7 +2,8 @@
 
 const STORAGE_KEY = "retirement-drawdown-model-v1";
 const DEVELOPER_STORAGE_KEY = "developer";
-const LAYOUT_VARIANT_STORAGE_KEY = "retirement-drawdown-layout-variant-v1";
+const LAYOUT_VARIANT_STORAGE_KEY = "retirement-drawdown-layout-variant-v2";
+const LEGACY_LAYOUT_VARIANT_STORAGE_KEY = "retirement-drawdown-layout-variant-v1";
 const {
   CARE_RESERVE_AGE,
   MAX_BOOST,
@@ -85,10 +86,15 @@ function applyLayoutVariant(variant) {
   return selected;
 }
 
-/** Restore the locally stored layout experiment choice, falling back to Comfortable. */
+/** Restore the locally stored layout experiment choice, promoting the former Compact treatment to Comfortable. */
 function readLayoutVariant() {
   try {
-    return applyLayoutVariant(localStorage.getItem(LAYOUT_VARIANT_STORAGE_KEY));
+    const saved = localStorage.getItem(LAYOUT_VARIANT_STORAGE_KEY);
+    if (saved) return applyLayoutVariant(saved);
+    if (localStorage.getItem(LEGACY_LAYOUT_VARIANT_STORAGE_KEY)) {
+      localStorage.setItem(LAYOUT_VARIANT_STORAGE_KEY, "comfortable");
+    }
+    return applyLayoutVariant("comfortable");
   } catch {
     return applyLayoutVariant("comfortable");
   }

@@ -72,6 +72,22 @@ button, input { font: inherit; }
   background: rgb(238 149 89 / 15%);
 }
 
+.hero__orb {
+  position: absolute;
+  z-index: 0;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.hero__orb--blue {
+  width: 22rem;
+  height: 22rem;
+  top: -10rem;
+  right: 8rem;
+  background: rgb(77 152 213 / 18%);
+  filter: blur(2px);
+}
+
 .hero__inner,
 main,
 footer {
@@ -81,7 +97,7 @@ footer {
   padding-right: max(18px, calc(env(safe-area-inset-right) + 18px));
 }
 
-.hero__inner { padding-top: 70px; padding-bottom: 96px; }
+.hero__inner { position: relative; z-index: 1; padding-top: 70px; padding-bottom: 96px; }
 
 .eyebrow {
   margin: 0 0 10px;
@@ -505,35 +521,56 @@ tbody tr:hover { background: #f8faf6; }
 footer { padding-top: 36px; padding-bottom: max(46px, calc(env(safe-area-inset-bottom) + 24px)); color: var(--muted); font-size: .78rem; text-align: center; }
 
 @media (min-width: 601px) {
-  :root[data-layout-variant="compact"] .hero__inner { padding-top: 52px; padding-bottom: 68px; }
-  :root[data-layout-variant="compact"] main { margin-top: -30px; }
-  :root[data-layout-variant="compact"] .privacy-note { margin-top: 14px; padding-block: 7px; }
-  :root[data-layout-variant="compact"] .longevity-note { margin-top: 16px; padding: 12px 15px; }
-  :root[data-layout-variant="compact"] .inputs-panel { padding: clamp(20px, 3vw, 30px); }
-  :root[data-layout-variant="compact"] fieldset { margin-top: 22px; }
-  :root[data-layout-variant="compact"] legend { margin-bottom: 10px; padding-bottom: 7px; }
+  .hero__inner { padding-top: 52px; padding-bottom: 68px; }
+  main { margin-top: -30px; }
+  .privacy-note { margin-top: 14px; padding-block: 7px; }
+  .longevity-note { margin-top: 16px; padding: 12px 15px; }
+  .inputs-panel { padding: clamp(20px, 3vw, 30px); }
+  fieldset { margin-top: 22px; }
+  legend { margin-bottom: 10px; padding-bottom: 7px; }
+  .form-grid,
+  .assumptions-grid { gap: 12px; }
+  .assumptions-grid { margin-top: 14px; }
+  .early-income-preview { gap: 8px; margin-top: 10px; }
+  .early-income-preview__item { padding: 10px 12px; }
+  details { margin-top: 22px; padding: 13px 14px; }
+  .form-actions { margin-top: 20px; }
+  .inputs-panel .care-guidance { margin-top: 18px; }
+  .care-guidance { gap: 12px; padding: 15px 17px; }
+  .results-heading { margin: 54px 0 18px; }
+  .summary-grid { gap: 12px; margin-bottom: 14px; }
+  .summary-card { min-height: 0; padding: 17px; }
+  .summary-card__value { margin-top: 7px; }
+  .summary-card__warning { margin-top: 9px; padding-top: 8px; }
+  .chart-panel { padding: clamp(16px, 2.5vw, 24px); }
+  .chart-wrap { height: 350px; margin-top: 13px; }
+  .tables-grid { gap: 14px; margin-top: 14px; }
+  .table-card__heading { padding: 17px 20px; }
+  .pot-narrative { padding: 15px 20px 17px; }
+  .methodology { margin-top: 14px; padding: clamp(20px, 3vw, 30px); }
+  .disclaimer { margin-top: 16px; padding-top: 14px; }
+  footer { padding-top: 26px; padding-bottom: max(36px, calc(env(safe-area-inset-bottom) + 20px)); }
+
+  :root[data-layout-variant="compact"] .hero__inner { padding-top: 42px; padding-bottom: 54px; }
+  :root[data-layout-variant="compact"] main { margin-top: -22px; }
+  :root[data-layout-variant="compact"] .longevity-note { margin-top: 12px; padding: 10px 13px; }
+  :root[data-layout-variant="compact"] .inputs-panel { padding: clamp(16px, 2vw, 24px); }
+  :root[data-layout-variant="compact"] fieldset { margin-top: 16px; }
   :root[data-layout-variant="compact"] .form-grid,
-  :root[data-layout-variant="compact"] .assumptions-grid { gap: 12px; }
-  :root[data-layout-variant="compact"] .assumptions-grid { margin-top: 14px; }
-  :root[data-layout-variant="compact"] .early-income-preview { gap: 8px; margin-top: 10px; }
-  :root[data-layout-variant="compact"] .early-income-preview__item { padding: 10px 12px; }
-  :root[data-layout-variant="compact"] details { margin-top: 22px; padding: 13px 14px; }
-  :root[data-layout-variant="compact"] .form-actions { margin-top: 20px; }
-  :root[data-layout-variant="compact"] .inputs-panel .care-guidance { margin-top: 18px; }
-  :root[data-layout-variant="compact"] .care-guidance { gap: 12px; padding: 15px 17px; }
-  :root[data-layout-variant="compact"] .results-heading { margin: 54px 0 18px; }
-  :root[data-layout-variant="compact"] .summary-grid { gap: 12px; margin-bottom: 14px; }
-  :root[data-layout-variant="compact"] .summary-card { min-height: 0; padding: 17px; }
-  :root[data-layout-variant="compact"] .summary-card__value { margin-top: 7px; }
-  :root[data-layout-variant="compact"] .summary-card__warning { margin-top: 9px; padding-top: 8px; }
-  :root[data-layout-variant="compact"] .chart-panel { padding: clamp(16px, 2.5vw, 24px); }
-  :root[data-layout-variant="compact"] .chart-wrap { height: 350px; margin-top: 13px; }
-  :root[data-layout-variant="compact"] .tables-grid { gap: 14px; margin-top: 14px; }
-  :root[data-layout-variant="compact"] .table-card__heading { padding: 17px 20px; }
-  :root[data-layout-variant="compact"] .pot-narrative { padding: 15px 20px 17px; }
-  :root[data-layout-variant="compact"] .methodology { margin-top: 14px; padding: clamp(20px, 3vw, 30px); }
-  :root[data-layout-variant="compact"] .disclaimer { margin-top: 16px; padding-top: 14px; }
-  :root[data-layout-variant="compact"] footer { padding-top: 26px; padding-bottom: max(36px, calc(env(safe-area-inset-bottom) + 20px)); }
+  :root[data-layout-variant="compact"] .assumptions-grid { gap: 10px; }
+  :root[data-layout-variant="compact"] details { margin-top: 16px; padding: 11px 12px; }
+  :root[data-layout-variant="compact"] .form-actions { gap: 8px; margin-top: 16px; }
+  :root[data-layout-variant="compact"] .care-guidance { padding: 12px 14px; }
+  :root[data-layout-variant="compact"] .results-heading { margin: 42px 0 14px; }
+  :root[data-layout-variant="compact"] .summary-grid { gap: 10px; margin-bottom: 10px; }
+  :root[data-layout-variant="compact"] .summary-card { padding: 14px; }
+  :root[data-layout-variant="compact"] .chart-panel { padding: clamp(14px, 2vw, 20px); }
+  :root[data-layout-variant="compact"] .chart-wrap { height: 300px; margin-top: 10px; }
+  :root[data-layout-variant="compact"] .tables-grid { gap: 10px; margin-top: 10px; }
+  :root[data-layout-variant="compact"] .table-card__heading { padding: 14px 16px; }
+  :root[data-layout-variant="compact"] .pot-narrative { padding: 12px 16px 14px; }
+  :root[data-layout-variant="compact"] .methodology { margin-top: 10px; padding: clamp(16px, 2vw, 24px); }
+  :root[data-layout-variant="compact"] footer { padding-top: 20px; padding-bottom: max(30px, calc(env(safe-area-inset-bottom) + 18px)); }
 }
 
 @media (max-width: 1200px) {

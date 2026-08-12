@@ -166,7 +166,8 @@ test("developer tools provide a persisted comfortable-versus-compact layout expe
   assert.match(html, /name="layout-variant" type="radio" value="comfortable"/);
   assert.match(html, /name="layout-variant" type="radio" value="compact"/);
   assert.match(html, /Compact reduces desktop and tablet spacing only/);
-  assert.match(app, /const LAYOUT_VARIANT_STORAGE_KEY = "retirement-drawdown-layout-variant-v1"/);
+  assert.match(app, /const LAYOUT_VARIANT_STORAGE_KEY = "retirement-drawdown-layout-variant-v2"/);
+  assert.match(app, /const LEGACY_LAYOUT_VARIANT_STORAGE_KEY = "retirement-drawdown-layout-variant-v1"/);
   assert.match(app, /function applyLayoutVariant\(variant\)/);
   assert.match(app, /document\.documentElement\.dataset\.layoutVariant = selected/);
   assert.match(app, /localStorage\.getItem\(LAYOUT_VARIANT_STORAGE_KEY\)/);
@@ -174,10 +175,11 @@ test("developer tools provide a persisted comfortable-versus-compact layout expe
   assert.match(app, /readLayoutVariant\(\);/);
 });
 
-test("compact layout reduces desktop and tablet spacing without changing the mobile layout", () => {
-  assert.match(css, /@media \(min-width: 601px\) \{[\s\S]*:root\[data-layout-variant="compact"\] \.hero__inner/);
-  assert.match(css, /:root\[data-layout-variant="compact"\] \.chart-wrap \{ height: 350px/);
-  assert.match(css, /:root\[data-layout-variant="compact"\] \.inputs-panel \{ padding: clamp\(20px, 3vw, 30px\)/);
+test("comfortable promotes the original compact spacing and Compact is tighter above mobile", () => {
+  assert.match(css, /@media \(min-width: 601px\) \{[\s\S]*\.chart-wrap \{ height: 350px/);
+  assert.match(css, /\.inputs-panel \{ padding: clamp\(20px, 3vw, 30px\)/);
+  assert.match(css, /:root\[data-layout-variant="compact"\] \.chart-wrap \{ height: 300px/);
+  assert.match(css, /:root\[data-layout-variant="compact"\] \.inputs-panel \{ padding: clamp\(16px, 2vw, 24px\)/);
   assert.doesNotMatch(css, /@media \(max-width: 600px\)[\s\S]*data-layout-variant="compact"/);
 });
 
