@@ -168,7 +168,7 @@ function buildPersonWorkspace(personKey) {
   const range = input(context, "boost", "range", { min: "0", max: "200", step: "5", required: true, "aria-describedby": `${prefix}-boost-note` });
   context.boostOutput = el("output", { for: range.id, text: "40%" });
   boost.grid.append(
-    fieldLabel("Higher income until age", input(context, "boostUntilAge", "number", { min: "40", max: "80", step: "1", required: true })),
+    fieldLabel("Higher income until age", input(context, "boostUntilAge", "number", { min: "40", max: "120", step: "1", required: true })),
     fieldLabel("Early-income uplift", el("span", { className: "range-input" }, range, context.boostOutput))
   );
   context.boostNote = el("p", { id: `${prefix}-boost-note`, className: "field-help", text: "0–200% in 5-point steps. The uplift applies to both drawdown scenarios until the selected birthday." });

@@ -50,6 +50,7 @@ test("country-specific account metadata contains every UK and USA account", () =
 
 test("both people receive the same accessible early-income slider and preview", () => {
   assert.match(app, /input\(context, "boost", "range", \{ min: "0", max: "200", step: "5"/);
+  assert.match(app, /input\(context, "boostUntilAge", "number", \{ min: "40", max: "120", step: "1"/);
   assert.match(app, /context\.boostOutput = el\("output"/);
   assert.match(app, /renderEarlyIncomePreview\(context, values, three, four, format\)/);
   assert.match(app, /baselineThree = scenario\(\{ \.\.\.values, boost: 0 \}, 0\.03\)/);
