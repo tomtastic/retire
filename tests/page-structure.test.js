@@ -11,250 +11,136 @@ const app = fs.readFileSync(path.join(root, "app.js"), "utf8");
 const css = fs.readFileSync(path.join(root, "styles.css"), "utf8");
 const model = fs.readFileSync(path.join(root, "model.js"), "utf8");
 
-test("all HTML ids are unique", () => {
+test("all static HTML ids are unique and the engine loads first", () => {
   const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]);
   assert.equal(new Set(ids).size, ids.length);
-});
-
-test("financial engine loads before the DOM application", () => {
   assert.ok(html.indexOf('<script src="model.js">') < html.indexOf('<script src="app.js">'));
-});
-
-test("page uses the local retirement-modeller favicon", () => {
   assert.match(html, /<link rel="icon" type="image\/svg\+xml" href="favicon\.svg">/);
 });
 
-test("every app input mapping has a matching HTML control", () => {
-  const fieldBlock = app.match(/const fields = \{([\s\S]*?)\n\};/)[1];
-  const ids = [...fieldBlock.matchAll(/:\s*"([^"]+)"/g)].map(match => match[1]);
-  assert.ok(ids.length >= 20);
-  for (const id of ids) assert.match(html, new RegExp(`id="${id}"`), `missing #${id}`);
+test("both person tabs host the same reusable workspace implementation", () => {
+  assert.match(html, /data-person="personOne"/);
+  assert.match(html, /data-person="personTwo"/);
+  assert.match(app, /for \(const key of PERSON_KEYS\) buildPersonWorkspace\(key\)/);
+  assert.match(app, /const submit = el\("button", \{ className: "button button--primary", type: "submit", text: "Validate and save" \}\)/);
+  assert.match(app, /text: "Reset defaults"/);
+  assert.match(app, /text: "Clear saved data"/);
 });
 
-test("page retains privacy, care, event and downside disclosures", () => {
-  assert.match(html, /never uploaded/);
-  assert.match(html, /£1m remaining at age 90/);
-  assert.match(html, /1% interest worstcase/);
-  assert.match(html, /ONS life expectancy data/);
+test("state uses versioned country profiles and migrates through the model", () => {
+  assert.match(app, /const PEOPLE_SCHEMA_VERSION = 3/);
+  assert.match(app, /person\.profiles\[context\.profileCountry\] = values/);
+  assert.match(app, /person\.selectedCountry = nextCountry/);
+  assert.match(app, /profiles: blankProfiles\(\)/);
+  assert.match(app, /migratePeopleState\(parsed\)/);
 });
 
-test("dynamic work is coalesced and care solving is deferred", () => {
-  assert.match(app, /function scheduleRender\(\)[\s\S]*requestAnimationFrame/);
-  assert.match(app, /function scheduleCareGuidance[\s\S]*setTimeout[\s\S]*requestIdleCallback/);
-  assert.match(app, /function saveLatestValues/);
-  assert.doesNotMatch(app, /setTimeout\(saveAndRender/);
+test("Person 1 is constrained to UK and Person 2 defaults to USA", () => {
+  assert.match(app, /disabled: personKey === "personOne"/);
+  assert.match(app, /personKey === "personOne" \? \[\] : \[profile\.fieldset\]/);
+  assert.match(app, /personKey === "personOne" \? "UK" : context\.profileCountry/);
+  assert.match(model, /personTwo: emptyPerson\("USA"\)/);
 });
 
-test("summary cards warn when their 1% downside reaches zero", () => {
-  assert.match(app, /downsideWarning\(downsideThree\)/);
-  assert.match(app, /downsideWarning\(downsideFour\)/);
-  assert.match(app, /1% return worst-case/);
-  assert.match(app, /reaches £0/);
+test("country-specific account metadata contains every UK and USA account", () => {
+  for (const label of ["Stocks / general account", "ISA", "Cash", "Company Pension / SIPP 1", "Company Pension / SIPP 2", "401(k)", "Traditional IRA", "Roth IRA", "Taxable brokerage"]) {
+    assert.ok(app.includes(label), label);
+  }
 });
 
-test("higher-income preview compares uplifted and standard net income", () => {
-  assert.match(app, /baselineValues = \{ \.\.\.values, boost: 0 \}/);
-  assert.match(app, /Without uplift:/);
-  assert.match(app, /early-income-preview__baseline/);
-});
-
-test("early-income slider is capped at a safe bridge-pot uplift", () => {
-  assert.match(app, /maxBoostBeforePensionAccess/);
-  assert.match(app, /boostInput\.max = String\(boostLimitCacheValue\)/);
-  assert.match(html, /id="boost-limit-note"/);
-  assert.match(app, /would exhaust stocks, ISA and cash before pensions unlock/);
-  assert.match(app, /reaching £1m at 90 would need an uplift/);
-});
-
-test("form fields do not stretch to match taller help content", () => {
-  assert.match(css, /\.form-grid > label,[\s\S]*align-self: start/);
-});
-
-test("projection tables show the pot currently available to withdraw", () => {
-  assert.match(app, /\["Year\(s\)", "Age\(s\)", "Net \/ month", "Pension pot", "Available pot", "Pot mix"\]/);
-  assert.match(app, /row\.pensionBalance/);
-  assert.match(app, /note\("Locked", "pot-note"\)/);
-  assert.match(app, /row\.availablePot/);
-  assert.match(app, /available pot is stocks, ISA and cash before pension access/);
-  assert.doesNotMatch(app, /"Accessible assets"/);
-  assert.doesNotMatch(app, /"End balance"/);
-});
-
-test("projection tables omit the repeated pot-mix allocation explanation", () => {
-  assert.doesNotMatch(app, /Pot mix bars: Stocks · ISA · Cash · Pension\/SIPP 1 · Pension\/SIPP 2/);
-});
-
-test("summary plan cards identify their values as end balances", () => {
-  assert.match(app, /summaryCard\("3% plan · end balance"/);
-  assert.match(app, /summaryCard\("4% plan · end balance"/);
-  assert.match(app, /function annualDrawDetail\(values, result\)/);
-  assert.match(app, /higher early annual draw until age/);
-});
-
-test("table rows include labelled native pot-mix bars", () => {
-  assert.match(app, /renderPotMix\(/);
-  for (const colour of ["stocks", "isa", "cash", "pension-one", "pension-two"]) assert.match(css, new RegExp(`pot-bar--${colour}`));
-  assert.match(app, /\["Stocks", "St", pots\.stocks, "stocks", scale\]/);
-  assert.match(app, /\["ISA", "ISA", pots\.isa, "isa", scale\]/);
-  assert.match(app, /\["Cash", "Ca", pots\.cash, "cash", scale\]/);
-  assert.match(app, /\["State Pension \(annual\)", "SP", stateIncome, "state", scale\]/);
-  assert.match(app, /bars\.setAttribute\("role", "img"\)/);
-  assert.match(app, /bars\.setAttribute\("aria-label", `Pot mix/);
-  assert.match(app, /filter\(\(\[, , value\]\) => value > 0\.005\)/);
-  assert.match(css, /height: 62px; margin-block: -7px/);
-});
-
-test("projection tables begin with opening portfolio values", () => {
-  assert.match(app, /openingRow\.className = "opening-row"/);
-  assert.match(app, /tableCell\(`Opening · \$\{result\.startingYear\}`\)/);
-  assert.match(app, /result\.startingPension/);
-  assert.match(app, /result\.startingAvailablePot/);
-});
-
-test("dynamic rendering does not use HTML parsing sinks", () => {
-  assert.doesNotMatch(app, /\b(?:innerHTML|outerHTML|insertAdjacentHTML)\b/);
-  assert.match(app, /tablesGrid\.replaceChildren\(renderTable\(three\), renderTable\(four\)\)/);
-  assert.match(app, /careGuidance\.replaceChildren\(icon, content\)/);
-  assert.match(app, /tooltip\.replaceChildren\(/);
-});
-
-test("projection tables show their full vertical height", () => {
-  assert.match(css, /\.table-scroll \{ max-height: none; overflow-x: auto; \}/);
-  assert.doesNotMatch(css, /\.table-scroll \{ max-height: 620px/);
-});
-
-test("mobile layout uses safe areas without desktop-width guidance", () => {
-  assert.match(html, /width=device-width, initial-scale=1, viewport-fit=cover/);
-  assert.doesNotMatch(html, /id="width-note"/);
-  assert.doesNotMatch(css, /\.width-note/);
-  assert.match(css, /env\(safe-area-inset-left\)/);
-  assert.match(css, /env\(safe-area-inset-right\)/);
-  assert.match(css, /env\(safe-area-inset-top\)/);
-  assert.match(css, /env\(safe-area-inset-bottom\)/);
-  assert.match(css, /@media \(max-width: 360px\)/);
-  assert.doesNotMatch(css, /\.hero__inner \{ padding: [^;}]+;/);
-  assert.doesNotMatch(css, /footer \{ padding: [^;}]+;/);
-  assert.doesNotMatch(css, /\b\d+(?:\.\d+)?(?:d|s|l)?vh\b/);
-});
-
-test("mobile form controls and annotations are comfortably sized", () => {
-  assert.match(css, /@media \(max-width: 600px\)[\s\S]*input, \.range-input output \{ font-size: 1rem; \}/);
+test("both people receive the same accessible early-income slider and preview", () => {
+  assert.match(app, /input\(context, "boost", "range", \{ min: "0", max: "200", step: "5"/);
+  assert.match(app, /context\.boostOutput = el\("output"/);
+  assert.match(app, /renderEarlyIncomePreview\(context, values, three, four, format\)/);
+  assert.match(app, /baselineThree = scenario\(\{ \.\.\.values, boost: 0 \}, 0\.03\)/);
   assert.match(css, /\.range-input input\[type="range"\] \{ min-height: 44px; \}/);
-  assert.match(css, /\.form-actions \.button \{ width: 100%; \}/);
-  assert.match(css, /\.income-note, \.pot-note, \.event-tag \{ font-size: \.75rem; \}/);
 });
 
-test("zero asset defaults can be populated from the read-only developer preset", () => {
-  assert.match(app, /localStorage\.getItem\(DEVELOPER_STORAGE_KEY\)/);
-  assert.match(app, /function readDeveloperAssets\(\)/);
-  assert.match(app, /\.\.\.developerAssets/);
-  assert.doesNotMatch(app, /localStorage\.setItem\("developer"/);
+test("percentage assumptions use in-box suffixes while ages use plain inputs", () => {
+  for (const key of ["realReturn", "inflation", "traditionalTaxableShare", "taxableWithdrawalShare"]) {
+    assert.match(app, new RegExp(`suffixInput\\(context, "${key}", "%"`));
+  }
+  for (const key of ["penaltyFreeAccessAge", "rmdStartAge"]) {
+    assert.match(app, new RegExp(`input\\(context, "${key}", "number"`));
+    assert.doesNotMatch(app, new RegExp(`suffixInput\\(context, "${key}"`));
+  }
 });
 
-test("hidden developer controls save the asset and inheritance preset", () => {
-  assert.match(html, /id="developer-corner"/);
-  assert.match(html, /id="save-developer-preset"[^>]*>Save to developer preset/);
-  assert.match(html, /id="remove-developer-preset"[^>]*>Remove developer preset/);
-  assert.match(html, /id="developer-tools"[^>]*hidden/);
-  assert.match(app, /developerCorner\.addEventListener\("click"/);
-  assert.match(app, /localStorage\.setItem\(DEVELOPER_STORAGE_KEY, JSON\.stringify\(\{ assets \}\)\)/);
-  assert.match(app, /inheritanceYear: values\.inheritanceYear/);
-  assert.match(app, /inheritanceAmount: values\.inheritanceAmount/);
-  assert.match(app, /inheritanceYear: "inheritanceYear"/);
-  assert.match(app, /inheritanceAmount: "inheritanceAmount"/);
-  assert.match(app, /removeDeveloperPresetButton\.addEventListener\("click"/);
-  assert.match(app, /localStorage\.removeItem\(DEVELOPER_STORAGE_KEY\)/);
-  assert.match(app, /function closeDeveloperToolsSoon\(\)[\s\S]*setTimeout[\s\S]*developerTools\.hidden = true/);
-  assert.match(app, /developerStatus\.textContent = ""/);
-  assert.match(css, /\.developer-tools\[hidden\] \{ display: none; \}/);
-  assert.match(css, /\.developer-corner \{ position: fixed;[^}]*safe-area-inset-top[^}]*safe-area-inset-right[^}]*width: 56px; height: 56px/);
+test("render contexts isolate currency, chart geometry, tooltip and keyboard state", () => {
+  assert.match(app, /const contexts = \{\}/);
+  assert.match(app, /context\.results = \{ values, format, three, four, downsideThree, downsideFour \}/);
+  assert.match(app, /context\.chart = \{ canvas, tooltip, details, geometry: null, lockedIndex: -1, hoverIndex: -1 \}/);
+  assert.match(app, /ArrowLeft/);
+  assert.match(app, /ArrowRight/);
+  assert.match(app, /event\.pointerType !== "touch"/);
+  assert.match(css, /\.chart-wrap canvas \{ width: 100%; height: 100%; \}/);
 });
 
-test("default layout retains the compact desktop treatment without an experiment switcher", () => {
-  assert.doesNotMatch(html, /layout-variant/);
-  assert.doesNotMatch(app, /LAYOUT_VARIANT/);
-  assert.doesNotMatch(css, /data-layout-variant/);
-  assert.match(css, /@media \(min-width: 601px\) \{[\s\S]*\.chart-wrap \{ height: 300px/);
-  assert.match(css, /\.inputs-panel \{ padding: clamp\(16px, 2vw, 24px\)/);
+test("USA and UK charts use country-appropriate markers", () => {
+  assert.match(app, /values\.country === "USA" \? "Account access" : "Private pensions"/);
+  assert.match(app, /if \(values\.country === "UK"\) markers\.push/);
+  assert.match(app, /label: "Inheritance"/);
 });
 
-test("hero aligns privacy beside its eyebrow and uses a lighter longevity border", () => {
-  assert.match(html, /<div class="hero__intro">[\s\S]*UK retirement planning[\s\S]*privacy-note/);
-  assert.match(css, /\.hero__intro \{ display: flex; gap: 16px; align-items: center; \}/);
-  assert.match(css, /\.longevity-note \{[\s\S]*border-left: 2px solid #66d0a9/);
-});
-
-test("reset defaults includes the developer asset preset", () => {
-  assert.match(app, /populateForm\(\{ \.\.\.defaults, \.\.\.readDeveloperAssets\(\) \}\)/);
-});
-
-test("reset defaults lets saved developer assets override built-in asset defaults", () => {
-  const resetHandler = app.match(/populateForm\(\{ \.\.\.defaults, \.\.\.readDeveloperAssets\(\) \}\)/);
-  assert.ok(resetHandler, "reset handler should merge developer assets after built-in defaults");
-
-  const builtInDefaults = { stocks: 0, isa: 0, cash: 0, pensionOne: 0, pensionTwo: 0, inheritanceYear: null, inheritanceAmount: null };
-  const savedDeveloperAssets = { stocks: 125000, isa: 64000, cash: 9000, pensionOne: 210000, pensionTwo: 175000, inheritanceYear: 2037, inheritanceAmount: 200000 };
-  const resetValues = { ...builtInDefaults, ...savedDeveloperAssets };
-
-  assert.deepEqual(resetValues, savedDeveloperAssets);
-  assert.equal(resetValues.stocks, 125000);
-  assert.equal(resetValues.pensionOne, 210000);
-  assert.equal(resetValues.pensionTwo, 175000);
-  assert.equal(resetValues.inheritanceYear, 2037);
-  assert.equal(resetValues.inheritanceAmount, 200000);
-});
-
-test("built-in inheritance defaults are empty", () => {
-  assert.match(model, /inheritanceYear: null/);
-  assert.match(model, /inheritanceAmount: null/);
-});
-
-test("hero description stays on one line when desktop width permits", () => {
-  assert.match(css, /@media \(min-width: 900px\)[\s\S]*\.hero__copy \{ max-width: none; white-space: nowrap; \}/);
-});
-
-test("tables use full width before the two-column layout can fit pot mix", () => {
-  assert.match(css, /@media \(max-width: 1510px\) and \(min-width: 901px\)[\s\S]*\.tables-grid \{ grid-template-columns: 1fr; \}/);
-});
-
-test("chart plots available pot and keeps total balance in hover context", () => {
-  assert.match(html, />Available pot<\/h3>/);
-  assert.match(html, /comparing available pots/);
-  assert.match(app, /maxAvailablePot/);
-  assert.match(app, /row\.availablePot/);
-  assert.match(app, /3% available:[\s\S]*total \$\{money\.format\(threeRow\.balance\)\}/);
-  assert.match(app, /drawHigherIncomeBand\(ctx, three, xFor, height, pad, values\)/);
-  assert.match(app, /fillText\("Higher income"/);
-});
-
-test("chart supports touch locking, keyboard navigation, and safe redraw", () => {
-  assert.match(html, /id="balance-chart" tabindex="0"/);
-  assert.match(html, /aria-describedby="chart-instructions chart-details"/);
-  assert.match(html, /id="chart-details" aria-live="polite"/);
-  assert.match(app, /function nearestChartIndex\(clientX\)/);
-  assert.match(app, /function showChartSelection\(index, announce = false\)/);
-  assert.match(app, /function positionChartTooltip\(index\)/);
-  assert.match(app, /canvas\.addEventListener\("pointerup"/);
-  assert.match(app, /event\.pointerType === "mouse" && event\.button !== 0/);
-  for (const key of ["ArrowLeft", "ArrowRight", "Home", "End", "Escape"]) assert.match(app, new RegExp(`event\\.key === "${key}"`));
-  assert.match(app, /drawChart\(currentResults\.three, currentResults\.four, currentResults\.downsideThree, currentResults\.downsideFour, currentResults\.values\)/);
-  assert.doesNotMatch(css, /touch-action:\s*none/);
-});
-
-test("projection tables advertise contained horizontal scrolling", () => {
+test("projection tables are currency-aware, account-aware and horizontally scrollable", () => {
+  assert.match(app, /ACCOUNT_META\[values\.country\]/);
+  assert.match(app, /\["Traditional", "accounts"\]/);
+  assert.match(app, /"Pension pot"/);
   assert.match(app, /Swipe horizontally to see all columns/);
-  assert.match(app, /scroll\.tabIndex = 0/);
-  assert.match(app, /scroll\.setAttribute\("role", "region"\)/);
-  assert.match(app, /`\$\{rateLabel\} projection table; scroll horizontally/);
+  assert.match(app, /tabIndex: 0, role: "region"/);
   assert.match(css, /\.table-scroll \{ max-height: none; overflow-x: auto; \}/);
   assert.match(css, /@media \(max-width: 600px\)[\s\S]*\.table-scroll-hint \{ display: block; \}/);
 });
 
-test("each table includes a dynamic pot-depletion narrative", () => {
-  assert.match(app, /renderPotNarrative\(result\)/);
-  assert.match(app, /How this path uses your pots/);
-  assert.match(app, /withdrawals come only from stocks, ISA and cash/);
-  assert.match(app, /tax-efficient pension amount first/);
+test("projection tables group unchanged years and wrap the wide USA headings", () => {
+  assert.match(app, /groupTableRows\(result\.rows\)/);
+  assert.match(app, /Math\.round\(next\.netMonthly\) !== Math\.round\(start\.netMonthly\)/);
+  assert.match(app, /isKeyEvent\(next\)/);
+  assert.match(app, /\["Traditional", "accounts"\]/);
+  assert.match(app, /\["Available", "pot"\]/);
+  assert.match(css, /\.table-heading--wrapped \{[^}]*white-space: normal/);
+});
+
+test("both people receive full deferred care-reserve guidance", () => {
+  assert.match(app, /renderCareGuidance\(context, values, three, four, format, false\)/);
+  assert.match(app, /scheduleCareGuidance\(context, values, three, four, format\)/);
+  assert.match(app, /solveBoostForCareReserve/);
+  assert.match(app, /solveRateForCareReserve/);
+  assert.match(app, /context\.careGuidance\.hidden = false/);
+  assert.match(app, /care-guidance--caution/);
+  assert.match(app, /You may be reserving more than ten years of care costs/);
+});
+
+test("methodology remains country appropriate", () => {
+  assert.match(app, /USA scope\./);
+  assert.match(app, /Social Security, Medicare, state taxes, joint filing/);
   assert.match(app, /State Pension offsets part of the income target/);
-  assert.match(app, /non-pension pot is finally exhausted/);
+  assert.match(html, /£1m remaining at age 90/);
+});
+
+test("Person 2 enable state is independent from clearing its profiles", () => {
+  const clearBlock = app.match(/function clearPerson\(context\) \{([\s\S]*?)\n\}/)[1];
+  assert.doesNotMatch(clearBlock, /personTwoEnabled/);
+  assert.match(app, /peopleState\.personTwoEnabled = !peopleState\.personTwoEnabled/);
+  assert.match(app, /Person 2 retained but hidden/);
+});
+
+test("dynamic DOM rendering avoids HTML parsing sinks", () => {
+  assert.doesNotMatch(app, /\b(?:innerHTML|outerHTML|insertAdjacentHTML)\b/);
+  assert.match(app, /replaceChildren/);
+});
+
+test("mobile layout retains safe areas, large controls and a 320px-compatible single column", () => {
+  assert.match(html, /width=device-width, initial-scale=1, viewport-fit=cover/);
+  assert.match(css, /env\(safe-area-inset-left\)/);
+  assert.match(css, /env\(safe-area-inset-right\)/);
+  assert.match(css, /@media \(max-width: 360px\)/);
+  assert.match(css, /@media \(max-width: 600px\)[\s\S]*\.form-grid[\s\S]*grid-template-columns: 1fr/);
+  assert.match(css, /\.form-actions \.button \{ width: 100%; \}/);
+});
+
+test("developer preset remains scoped to Person 1 UK reset", () => {
+  assert.match(app, /context\.personKey === "personOne" \? \{ \.\.\.base, \.\.\.readDeveloperAssets\(\), country: "UK"/);
+  assert.match(html, /Save Person 1 assets to developer preset/);
+  assert.match(app, /localStorage\.setItem\(DEVELOPER_STORAGE_KEY/);
 });

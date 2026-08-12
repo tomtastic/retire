@@ -12,6 +12,8 @@
   const MAX_BOOST = 200;
 
   const DEFAULTS = Object.freeze({
+    country: "UK",
+    currency: "GBP",
     birthDate: "1978-01-07",
     retirementDate: "2027-01-01",
     horizon: 50,
@@ -33,6 +35,25 @@
     basicBand: 37700,
     taxFreeShare: 25,
     taxFreeCap: 268275
+  });
+
+  const USA_DEFAULTS = Object.freeze({
+    country: "USA",
+    currency: "USD",
+    birthDate: "1978-01-07",
+    retirementDate: "2027-01-01",
+    horizon: 50,
+    realReturn: 3,
+    inflation: 2.5,
+    boostUntilAge: 60,
+    boost: 40,
+    inheritanceYear: null,
+    inheritanceAmount: null,
+    penaltyFreeAccessAge: 59.5,
+    traditionalTaxableShare: 100,
+    rmdStartAge: null,
+    taxableWithdrawalShare: 50,
+    accounts: Object.freeze([])
   });
 
   /**
@@ -139,7 +160,7 @@
    * @returns {Object} Scenario metadata, annual rows, balances, and depletion timing.
    * @throws {RangeError} When any model input is invalid.
    */
-  function scenario(values, rate) {
+  function ukScenario(values, rate) {
     const errors = validateModelInputs(values, rate);
     if (errors.length) throw new RangeError(errors.join(" "));
 
@@ -332,6 +353,159 @@
     };
   }
 
+  /** Project a USA plan using configurable illustrative account assumptions. */
+  function usaScenario(values, rate) {
+    const merged = { ...USA_DEFAULTS, ...values };
+    const birth = parseLocalDate(merged.birthDate);
+    const retirement = parseLocalDate(merged.retirementDate);
+    const accounts = Array.isArray(merged.accounts) ? merged.accounts : [];
+    const balances = { "401k": 0, traditionalIRA: 0, rothIRA: 0, taxableBrokerage: 0 };
+    for (const account of accounts) {
+      const type = account.type || account.kind;
+      if (Object.hasOwn(balances, type)) balances[type] += Math.max(0, Number(account.balance) || 0);
+    }
+    const startingBalance = Object.values(balances).reduce((sum, value) => sum + value, 0);
+    const startingBalances = { ...balances };
+    const monthlyReturn = Math.pow(1 + merged.realReturn / 100, 1 / 12) - 1;
+    const baseAnnualIncome = startingBalance * rate;
+    const rows = [];
+    let depletedAt = null;
+    let inheritanceAdded = false;
+    const withdraw = (amount, age) => {
+      let remaining = amount;
+      let taxableIncome = 0;
+      const take = (key, taxableShare = 0, penalty = false) => {
+        const actual = Math.min(balances[key], remaining);
+        balances[key] -= actual;
+        if (Math.abs(balances[key]) < 1e-8) balances[key] = 0;
+        remaining -= actual;
+        taxableIncome += actual * taxableShare;
+        if (penalty && age < merged.penaltyFreeAccessAge) taxableIncome += actual * 0.1;
+      };
+      take("taxableBrokerage", Math.max(0, Math.min(100, merged.taxableWithdrawalShare)) / 100);
+      take("rothIRA", 0);
+      if (age < merged.penaltyFreeAccessAge) return { remaining, taxableIncome };
+      const traditionalShare = Math.max(0, Math.min(100, merged.traditionalTaxableShare)) / 100;
+      take("401k", traditionalShare, true);
+      take("traditionalIRA", traditionalShare, true);
+      return { remaining, taxableIncome };
+    };
+    for (let yearIndex = 0; yearIndex < merged.horizon; yearIndex += 1) {
+      let grossIncome = 0;
+      let taxableIncome = 0;
+      let unmet = 0;
+      let inheritedThisYear = false;
+      for (let month = 0; month < 12; month += 1) {
+        const date = addMonths(retirement, yearIndex * 12 + month);
+        if (!inheritanceAdded && merged.inheritanceYear != null && date.getFullYear() >= merged.inheritanceYear) {
+          const yearsFromRetirement = Math.max(0, merged.inheritanceYear - retirement.getFullYear());
+          balances.taxableBrokerage += (Number(merged.inheritanceAmount) || 0) / Math.pow(1 + merged.inflation / 100, yearsFromRetirement);
+          inheritanceAdded = true;
+          inheritedThisYear = true;
+        }
+        Object.keys(balances).forEach(key => { balances[key] *= 1 + monthlyReturn; });
+        const age = ageAt(date, birth);
+        const target = baseAnnualIncome * (date < addYears(birth, merged.boostUntilAge) ? 1 + merged.boost / 100 : 1) / 12;
+        let result = withdraw(target, age);
+        if (merged.rmdStartAge != null && age >= merged.rmdStartAge && balances["401k"] + balances.traditionalIRA > 0) {
+          const rmd = (balances["401k"] + balances.traditionalIRA) / 25 / 12;
+          const forced = withdraw(rmd, age);
+          result = { remaining: result.remaining, taxableIncome: result.taxableIncome + forced.taxableIncome };
+        }
+        grossIncome += target;
+        taxableIncome += result.taxableIncome;
+        unmet += result.remaining;
+        if (result.remaining > 1e-8 && !depletedAt) depletedAt = new Date(date);
+      }
+      const startDate = addMonths(retirement, yearIndex * 12);
+      const endDate = addMonths(retirement, (yearIndex + 1) * 12 - 1);
+      const accessDate = addMonths(birth, Math.round(merged.penaltyFreeAccessAge * 12));
+      const accessAvailable = endDate >= accessDate;
+      const balance = Object.values(balances).reduce((sum, value) => sum + Math.max(0, value), 0);
+      const tax = taxableIncome * 0.22;
+      rows.push({
+        year: endDate.getFullYear(), age: ageAt(endDate, birth), netMonthly: Math.max(0, grossIncome - unmet - tax) / 12,
+        balance, availablePot: Math.max(0, balances.taxableBrokerage + balances.rothIRA + (accessAvailable ? balances["401k"] + balances.traditionalIRA : 0)), pensionAvailable: accessAvailable,
+        accessibleBalance: Math.max(0, balances.taxableBrokerage + balances.rothIRA), pensionBalance: Math.max(0, balances["401k"] + balances.traditionalIRA),
+        stocksBalance: Math.max(0, balances.taxableBrokerage), isaBalance: 0, cashBalance: 0,
+        pensionOneBalance: Math.max(0, balances["401k"]), pensionTwoBalance: Math.max(0, balances.traditionalIRA),
+        incomeTax: tax, grossIncome, stateIncome: 0, pensionDraw: 0, unmetIncome: unmet,
+        inheritedThisYear, pensionStarted: accessAvailable && startDate < accessDate, stateStarted: false,
+        depletionStarted: depletedAt != null && depletedAt >= startDate && depletedAt <= endDate,
+        stateOnly: false, depleted: unmet > 1e-8,
+        accountBalances: { ...balances }
+      });
+    }
+    return {
+      rate, rows, startingBalance, startingAccessible: startingBalances.taxableBrokerage + startingBalances.rothIRA,
+      startingPension: startingBalances["401k"] + startingBalances.traditionalIRA,
+      startingPots: Object.freeze({ ...startingBalances }),
+      startingAvailablePot: startingBalances.taxableBrokerage + startingBalances.rothIRA +
+        (ageAt(retirement, birth) >= merged.penaltyFreeAccessAge ? startingBalances["401k"] + startingBalances.traditionalIRA : 0),
+      pensionAvailableAtStart: retirement >= addMonths(birth, Math.round(merged.penaltyFreeAccessAge * 12)),
+      startingYear: retirement.getFullYear(), startingAge: ageAt(retirement, birth), baseAnnualIncome, depletedAt
+    };
+  }
+
+  function scenario(values, rate) {
+    return (values.country || "UK").toUpperCase() === "USA" ? usaScenario(values, rate) : ukScenario(values, rate);
+  }
+
+  function normalizePerson(person = {}) {
+    const country = (person.country || "UK").toUpperCase() === "USA" ? "USA" : "UK";
+    if (country === "USA") return { ...USA_DEFAULTS, ...person, country, currency: "USD" };
+    return { ...DEFAULTS, ...person, country: "UK", currency: "GBP" };
+  }
+
+  function migratePeopleState(saved) {
+    const emptyPerson = selectedCountry => ({
+      selectedCountry,
+      profiles: {
+        UK: normalizePerson(DEFAULTS),
+        USA: normalizePerson(USA_DEFAULTS)
+      }
+    });
+    if (saved && saved.version === 3 && saved.people?.personOne?.profiles && saved.people?.personTwo?.profiles) {
+      const one = saved.people.personOne;
+      const two = saved.people.personTwo;
+      return {
+        version: 3,
+        personTwoEnabled: Boolean(saved.personTwoEnabled),
+        people: {
+          personOne: {
+            selectedCountry: "UK",
+            profiles: {
+              UK: normalizePerson({ ...DEFAULTS, ...one.profiles.UK, country: "UK" }),
+              USA: normalizePerson({ ...USA_DEFAULTS, ...one.profiles.USA, country: "USA" })
+            }
+          },
+          personTwo: {
+            selectedCountry: two.selectedCountry === "UK" ? "UK" : "USA",
+            profiles: {
+              UK: normalizePerson({ ...DEFAULTS, ...two.profiles.UK, country: "UK" }),
+              USA: normalizePerson({ ...USA_DEFAULTS, ...two.profiles.USA, country: "USA" })
+            }
+          }
+        }
+      };
+    }
+    const migrated = { version: 3, personTwoEnabled: Boolean(saved?.personTwoEnabled), people: { personOne: emptyPerson("UK"), personTwo: emptyPerson("USA") } };
+    if (saved && saved.version === 2 && saved.people?.personOne) {
+      const one = saved.people.personOne;
+      const two = saved.people.personTwo;
+      migrated.people.personOne.profiles.UK = normalizePerson({ ...DEFAULTS, ...one, country: "UK" });
+      if (two && typeof two === "object") {
+        const country = (two.country || "USA").toUpperCase() === "UK" ? "UK" : "USA";
+        migrated.people.personTwo.selectedCountry = country;
+        migrated.people.personTwo.profiles[country] = normalizePerson(two);
+      }
+      return migrated;
+    }
+    const legacy = saved && typeof saved === "object" ? saved : {};
+    migrated.people.personOne.profiles.UK = normalizePerson({ ...DEFAULTS, ...legacy, country: "UK" });
+    return migrated;
+  }
+
   /**
    * Calculate simplified UK basic- and higher-rate income tax.
    * @param {number} income Annual taxable-source income before allowance.
@@ -478,6 +652,11 @@
     solveBoostForCareReserve,
     solveRateForCareReserve,
     maxBoostBeforePensionAccess,
-    depletesBeforeAge
+    depletesBeforeAge,
+    USA_DEFAULTS,
+    normalizePerson,
+    migratePeopleState,
+    ukScenario,
+    usaScenario
   });
 });

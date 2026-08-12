@@ -3,7 +3,7 @@
 [![CI and deploy](https://github.com/tomtastic/retire/actions/workflows/pages.yml/badge.svg?branch=main)](https://github.com/tomtastic/retire/actions/workflows/pages.yml?query=branch%3Amain)
 [![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/tomtastic/retire/coverage/coverage.json)](https://github.com/tomtastic/retire/actions/workflows/pages.yml)
 
-A private, dependency-free UK retirement drawdown modeller.
+A private, dependency-free retirement drawdown modeller with independent UK and USA profiles for two people.
 
 Open `index.html` locally, or use the live [GitHub Pages site](https://tomtastic.github.io/retire/).
 
@@ -23,8 +23,8 @@ See the [Mobile Design Guide](MOBILE_DESIGN_GUIDE.md) for the project's iPhone d
 
 - Semantic HTML5 form controls, native validation, accessible labels, live status text, keyboard-friendly chart navigation, and a Canvas 2D projection chart.
 - Responsive CSS using custom properties, Grid, Flexbox, safe-area insets, and contained horizontal scrolling for wide projection tables.
-- Vanilla JavaScript calculates the model in the browser, formats UK currency with `Intl.NumberFormat`, and supports touch, pointer, keyboard, and reduced-motion preferences.
-- Fast by design: no runtime dependencies, frameworks, trackers, network requests, or build step; rendering is coalesced with `requestAnimationFrame`, while heavier care guidance work is deferred until the browser is idle.
+- Vanilla JavaScript calculates the model in the browser, formats GBP and USD with `Intl.NumberFormat`, and supports touch, pointer, keyboard, and reduced-motion preferences.
+- Fast by design: no runtime dependencies, frameworks, trackers, network requests, or build step; rendering is coalesced with `requestAnimationFrame`.
 - `localStorage` keeps user settings and the optional developer preset on the device; figures are never uploaded.
 
 ## Testing

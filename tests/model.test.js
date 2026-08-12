@@ -14,6 +14,7 @@ const {
   solveBoostForCareReserve,
   solveRateForCareReserve,
   maxBoostBeforePensionAccess
+  ,normalizePerson, migratePeopleState
 } = require("../model.js");
 
 const DEFAULTS = Object.freeze({
@@ -296,6 +297,95 @@ test("cash is included in accessible assets and starting balance", () => {
   const withCash = scenario(withoutInheritance({ cash: 12345, horizon: 1, boost: 0 }), 0.03);
   assert.equal(withCash.startingBalance - base.startingBalance, 12345);
   assert.ok(withCash.rows[0].accessibleBalance > base.rows[0].accessibleBalance);
+});
+
+test("USA accounts normalize and preserve native USD projection contract", () => {
+  const person = normalizePerson({ country: "USA", birthDate: "1970-01-01", retirementDate: "2027-01-01", horizon: 2, realReturn: 0, boost: 0, penaltyFreeAccessAge: 60, accounts: [
+    { type: "401k", balance: 100000 }, { type: "traditionalIRA", balance: 50000 }, { type: "rothIRA", balance: 25000 }, { type: "taxableBrokerage", balance: 25000 }
+  ] });
+  const result = scenario(person, 0.03);
+  assert.equal(person.currency, "USD");
+  assert.equal(result.startingBalance, 200000);
+  assert.equal(result.rows.length, 2);
+  assert.ok(result.rows.every(row => row.balance >= -1e-8 && row.availablePot >= -1e-8));
+});
+
+test("USA traditional accounts remain locked before penalty-free access while Roth remains available", () => {
+  const result = scenario(normalizePerson({ country: "USA", birthDate: "1970-01-01", retirementDate: "2027-01-01", horizon: 1, realReturn: 0, boost: 0, penaltyFreeAccessAge: 60, accounts: [
+    { type: "401k", balance: 100000 }, { type: "rothIRA", balance: 100000 }
+  ] }), 0.5);
+  assert.equal(result.rows[0].accountBalances["401k"], 100000);
+  assert.equal(result.rows[0].accountBalances.rothIRA, 0);
+});
+
+test("USA inheritance is added once in retirement-year dollars", () => {
+  const base = normalizePerson({ country: "USA", birthDate: "1970-01-01", retirementDate: "2027-01-01", horizon: 3, realReturn: 0, inflation: 2.5, boost: 0, accounts: [{ type: "taxableBrokerage", balance: 100000 }] });
+  const inherited = scenario({ ...base, inheritanceYear: 2028, inheritanceAmount: 25000 }, 0.03);
+  assert.equal(inherited.rows.filter(row => row.inheritedThisYear).length, 1);
+  assert.equal(inherited.rows.find(row => row.inheritedThisYear).year, 2028);
+  assert.ok(inherited.rows.at(-1).balance > scenario(base, 0.03).rows.at(-1).balance);
+});
+
+test("legacy saved values migrate unchanged into Person 1's UK profile and keep Person 2 off", () => {
+  const migrated = migratePeopleState({ birthDate: "1965-02-03", stocks: 12345, pensionOne: 67890 });
+  assert.equal(migrated.version, 3);
+  assert.equal(migrated.personTwoEnabled, false);
+  assert.equal(migrated.people.personOne.selectedCountry, "UK");
+  assert.equal(migrated.people.personOne.profiles.UK.birthDate, "1965-02-03");
+  assert.equal(migrated.people.personOne.profiles.UK.stocks, 12345);
+  assert.equal(migrated.people.personOne.profiles.UK.pensionOne, 67890);
+  assert.equal(migrated.people.personTwo.selectedCountry, "USA");
+  assert.equal(migrated.people.personTwo.profiles.USA.country, "USA");
+});
+
+test("version 2 Person 2 values migrate into their matching country profile", () => {
+  const migrated = migratePeopleState({
+    version: 2,
+    personTwoEnabled: true,
+    people: {
+      personOne: { ...MODEL_DEFAULTS, stocks: 10 },
+      personTwo: { country: "USA", accounts: [{ type: "401k", balance: 54321 }] }
+    }
+  });
+  assert.equal(migrated.version, 3);
+  assert.equal(migrated.personTwoEnabled, true);
+  assert.equal(migrated.people.personOne.profiles.UK.stocks, 10);
+  assert.equal(migrated.people.personTwo.profiles.USA.accounts[0].balance, 54321);
+  assert.equal(migrated.people.personTwo.profiles.UK.country, "UK");
+});
+
+test("version 3 keeps independent Person 2 UK and USA profiles", () => {
+  const migrated = migratePeopleState({
+    version: 3,
+    personTwoEnabled: true,
+    people: {
+      personOne: { selectedCountry: "UK", profiles: { UK: { ...MODEL_DEFAULTS }, USA: {} } },
+      personTwo: {
+        selectedCountry: "UK",
+        profiles: {
+          UK: { ...MODEL_DEFAULTS, isa: 111 },
+          USA: { ...require("../model.js").USA_DEFAULTS, accounts: [{ type: "rothIRA", balance: 222 }] }
+        }
+      }
+    }
+  });
+  assert.equal(migrated.people.personTwo.selectedCountry, "UK");
+  assert.equal(migrated.people.personTwo.profiles.UK.isa, 111);
+  assert.equal(migrated.people.personTwo.profiles.USA.accounts[0].balance, 222);
+});
+
+test("USA available pot excludes traditional accounts until the configured access event", () => {
+  const person = normalizePerson({
+    country: "USA", birthDate: "1970-01-01", retirementDate: "2027-01-01", horizon: 5,
+    realReturn: 0, boost: 0, penaltyFreeAccessAge: 59.5,
+    accounts: [{ type: "401k", balance: 100000 }, { type: "rothIRA", balance: 25000 }]
+  });
+  const result = scenario(person, 0.03);
+  assert.equal(result.startingAvailablePot, 25000);
+  assert.equal(result.rows.filter(row => row.pensionStarted).length, 1);
+  const access = result.rows.find(row => row.pensionStarted);
+  assert.equal(access.pensionAvailable, true);
+  assert.ok(access.availablePot > access.accessibleBalance);
 });
 
 test("event markers occur once and in chronological order", () => {
