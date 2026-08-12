@@ -4,7 +4,6 @@ const STORAGE_KEY = "retirement-drawdown-model-v1";
 const DEVELOPER_STORAGE_KEY = "developer";
 const {
   CARE_RESERVE_AGE,
-  CARE_RESERVE,
   MAX_BOOST,
   DEFAULTS: defaults,
   parseLocalDate,

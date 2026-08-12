@@ -4,7 +4,14 @@
   "version": "1.0.0",
   "description": "Dependency-free UK retirement drawdown modeller",
   "scripts": {
+    "lint": "eslint . --max-warnings=0",
+    "lint:sarif": "eslint . --max-warnings=0 --format ./scripts/eslint-sarif-formatter.js --output-file eslint-results.sarif",
     "test": "node --test tests/*.test.js",
     "test:coverage": "node --test --experimental-test-coverage tests/*.test.js"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.8.1",
+    "globals": "17.10.0"
   }
 }

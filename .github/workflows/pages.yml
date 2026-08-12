@@ -1,34 +1,102 @@
-name: Deploy GitHub Pages
+name: CI and deploy
 
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
-
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: true
+  schedule:
+    - cron: '39 6 * * 1'
 
 jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Run test suite
+        run: npm test
+      - name: Measure coverage
+        run: npm run test:coverage 2>&1 | tee coverage-report.txt
+      - name: Generate coverage badge data
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: node scripts/make-coverage-badge.js coverage-report.txt coverage.json
+      - name: Publish coverage badge data
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          badge_data="$(cat coverage.json)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin coverage:coverage || true
+          git branch -D coverage 2>/dev/null || true
+          git switch --orphan coverage
+          git clean -fdx
+          printf '%s\n' "$badge_data" > coverage.json
+          git add coverage.json
+          git commit -m "Update coverage badge [skip ci]" || exit 0
+          git push origin coverage --force
+
+  eslint:
+    name: ESLint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Run ESLint
+        id: eslint
+        run: npm run lint:sarif
+        continue-on-error: true
+      - name: Upload analysis results to GitHub
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: eslint-results.sarif
+          wait-for-processing: true
+      - name: Enforce ESLint result
+        if: steps.eslint.outcome == 'failure'
+        run: exit 1
+
   deploy:
+    name: Deploy GitHub Pages
+    needs: [test, eslint]
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: true
     steps:
       - name: Check out repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
       - name: Configure Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
       - name: Upload site artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: .
       - name: Deploy to Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
