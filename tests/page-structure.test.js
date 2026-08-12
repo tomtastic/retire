@@ -111,7 +111,7 @@ test("projection tables group unchanged years and wrap the wide USA headings", (
 });
 
 test("care guidance sits between the early-income controls and preview cards", () => {
-  assert.match(app, /boost\.fieldset\.append\(context\.careGuidance, context\.earlyPreview, context\.boostNote\)/);
+  assert.match(app, /boost\.fieldset\.append\(context\.boostNote, context\.careGuidance, context\.earlyPreview\)/);
   assert.doesNotMatch(app, /context\.countryNote, context\.careGuidance/);
 });
 

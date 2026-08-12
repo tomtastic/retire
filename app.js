@@ -174,7 +174,7 @@ function buildPersonWorkspace(personKey) {
   context.boostNote = el("p", { id: `${prefix}-boost-note`, className: "field-help", text: "0–200% in 5-point steps. The uplift applies to both drawdown scenarios until the selected birthday." });
   context.careGuidance = el("aside", { id: `${prefix}-care-guidance`, className: "care-guidance", "aria-live": "polite" });
   context.earlyPreview = el("div", { id: `${prefix}-early-income-preview`, className: "early-income-preview", "aria-live": "polite" });
-  boost.fieldset.append(context.careGuidance, context.earlyPreview, context.boostNote);
+  boost.fieldset.append(context.boostNote, context.careGuidance, context.earlyPreview);
 
   context.assumptionsDetails = el("details", {}, el("summary", { text: "Modelling assumptions" }), context.assumptionsGrid = el("div", { className: "assumptions-grid" }));
   context.countryNote = el("p", { className: "field-help country-method-note" });
