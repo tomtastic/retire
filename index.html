@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="light">
-  <meta name="description" content="A private, dependency-free UK retirement drawdown modeller.">
+  <meta name="description" content="A private, dependency-free retirement drawdown modeller for UK and USA profiles.">
   <title>Retirement Drawdown Modeller</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="styles.css">
@@ -13,22 +13,23 @@
   <button class="developer-corner" id="developer-corner" type="button" aria-label="Show developer preset controls" aria-expanded="false"></button>
   <aside class="developer-tools" id="developer-tools" hidden>
     <div class="developer-actions">
-      <button class="button button--quiet" id="save-developer-preset" type="button">Save to developer preset</button>
+      <button class="button button--quiet" id="save-developer-preset" type="button">Save Person 1 assets to developer preset</button>
       <button class="button button--danger" id="remove-developer-preset" type="button">Remove developer preset</button>
     </div>
     <span id="developer-status" role="status" aria-live="polite"></span>
   </aside>
+
   <header class="hero">
     <div class="hero__orb hero__orb--blue" aria-hidden="true"></div>
     <div class="hero__inner">
       <div class="hero__intro">
-        <p class="eyebrow">UK retirement planning</p>
+        <p class="eyebrow">Retirement planning</p>
         <p class="privacy-note"><span aria-hidden="true">●</span> Your figures stay in this browser and are never uploaded.</p>
       </div>
-      <p class="hero__copy">Compare inflation-adjusted 3% and 4% drawdown plans, including pension tax, State Pension and an optional inheritance.</p>
-      <aside class="longevity-note">
-        <strong>Plan for longevity, but keep it in proportion.</strong>
-        In 2024, only 16,600 UK residents were aged 100 or over—about 1 in 4,200 people. ONS cohort mortality tables give a current 48-year-old approximately a 4.3% chance for men and 8.7% for women of reaching 100. This planner therefore uses £1m remaining at age 90 as a generous care reserve: ten years at the assumed £100k annual full-time-care cost.
+      <p class="hero__copy">Compare inflation-adjusted 3% and 4% drawdown plans for independent UK and USA profiles.</p>
+      <aside class="longevity-note" id="uk-longevity-note">
+        <strong>UK care-reserve context.</strong>
+        In 2024, 16,600 UK residents were aged 100 or over. For UK profiles this planner uses £1m remaining at age 90 as a generous ten-year care reserve.
         <a href="https://www.ons.gov.uk/peoplepopulationandcommunity/healthandsocialcare/healthandlifeexpectancies/articles/lifeexpectancycalculator/2019-06-07" target="_blank" rel="noopener noreferrer">ONS life expectancy data</a>
       </aside>
     </div>
@@ -37,139 +38,27 @@
   <main>
     <section class="panel inputs-panel" aria-labelledby="inputs-heading">
       <div class="section-heading">
-        <div>
-          <p class="eyebrow">Your plan</p>
-          <h2 id="inputs-heading">Starting figures</h2>
-        </div>
-        <div class="saved-state" id="saved-state" role="status" aria-live="polite">Saved locally</div>
+        <div><p class="eyebrow">Your plan</p><h2 id="inputs-heading">Starting figures</h2></div>
       </div>
 
-      <form id="model-form">
-        <fieldset>
-          <legend>Dates</legend>
-          <div class="form-grid form-grid--dates">
-            <label>Birth date<input id="birth-date" name="birthDate" type="date" required></label>
-            <label>Retirement date<input id="retirement-date" name="retirementDate" type="date" required></label>
-            <label>Projection length<span class="input-suffix"><input id="horizon" name="horizon" type="number" min="5" max="70" step="1" required><span>years</span></span></label>
-          </div>
-        </fieldset>
+      <nav class="person-tabs" aria-label="Planning person" role="tablist">
+        <button class="person-tab person-tab--active" id="person-one-tab" type="button" role="tab" aria-selected="true" aria-controls="person-one-workspace">Person 1 <span class="country-badge" aria-hidden="true">GB</span></button>
+        <button class="person-tab" id="person-two-tab" type="button" role="tab" aria-selected="false" aria-controls="person-two-workspace" hidden>Person 2 <span class="country-badge person-two-flag" aria-hidden="true">US</span></button>
+        <button class="person-tab" id="household-tab" type="button" role="tab" aria-selected="false" aria-controls="household-panel">Household</button>
+        <button class="button button--quiet" id="toggle-person-two" type="button">Add second person</button>
+      </nav>
 
-        <fieldset>
-          <legend>Initial assets</legend>
-          <div class="form-grid">
-            <label>Stocks / general account<span class="money-input"><span>£</span><input id="stocks" name="stocks" type="number" min="0" step="any" inputmode="decimal" required></span></label>
-            <label>ISA<span class="money-input"><span>£</span><input id="isa" name="isa" type="number" min="0" step="any" inputmode="decimal" required></span></label>
-            <label>Cash<span class="money-input"><span>£</span><input id="cash" name="cash" type="number" min="0" step="any" inputmode="decimal" required></span></label>
-            <label>Company Pension / SIPP 1<span class="money-input"><span>£</span><input id="pension-one" name="pensionOne" type="number" min="0" step="any" inputmode="decimal" required></span></label>
-            <label>Company Pension / SIPP 2<span class="money-input"><span>£</span><input id="pension-two" name="pensionTwo" type="number" min="0" step="any" inputmode="decimal" required></span></label>
-          </div>
-        </fieldset>
-
-        <fieldset>
-          <legend>Optional inheritance</legend>
-          <div class="form-grid form-grid--inheritance">
-            <label>Year received<input id="inheritance-year" name="inheritanceYear" type="number" min="2027" max="2100" step="1" placeholder="Leave blank"></label>
-            <label>Amount at that date<span class="money-input"><span>£</span><input id="inheritance-amount" name="inheritanceAmount" type="number" min="0" step="any" inputmode="decimal" placeholder="0"></span></label>
-          </div>
-          <p class="field-help">The future amount is converted to retirement-year purchasing power using the inflation assumption.</p>
-        </fieldset>
-
-        <fieldset>
-          <legend>Higher early income</legend>
-          <div class="form-grid form-grid--inheritance">
-            <label>Higher income until age<input id="boost-until-age" name="boostUntilAge" type="number" min="40" max="80" step="1" required></label>
-            <label>Early-income uplift
-              <span class="range-input">
-                <input id="boost" name="boost" type="range" min="0" max="200" step="5" list="boost-ticks" required>
-                <output id="boost-output" for="boost">25%</output>
-              </span>
-              <small id="boost-limit-note" class="field-help"></small>
-              <datalist id="boost-ticks">
-                <option value="0"></option><option value="5"></option><option value="10"></option><option value="15"></option><option value="20"></option>
-                <option value="25"></option><option value="30"></option><option value="35"></option><option value="40"></option><option value="45"></option>
-                <option value="50"></option><option value="55"></option><option value="60"></option><option value="65"></option><option value="70"></option>
-                <option value="75"></option><option value="80"></option><option value="85"></option><option value="90"></option><option value="95"></option>
-                <option value="100"></option><option value="105"></option><option value="110"></option><option value="115"></option><option value="120"></option>
-                <option value="125"></option><option value="130"></option><option value="135"></option><option value="140"></option><option value="145"></option>
-                <option value="150"></option><option value="155"></option><option value="160"></option><option value="165"></option><option value="170"></option>
-                <option value="175"></option><option value="180"></option><option value="185"></option><option value="190"></option><option value="195"></option>
-                <option value="200"></option>
-              </datalist>
-            </label>
-          </div>
-          <div class="early-income-preview" id="early-income-preview" aria-live="polite"></div>
-          <p class="field-help">The uplift is applied to both drawdown scenarios until the selected birthday.</p>
-        </fieldset>
-
-        <aside class="care-guidance" id="care-guidance" aria-live="polite"></aside>
-
-        <details>
-          <summary>Modelling assumptions</summary>
-          <div class="assumptions-grid">
-            <label>Real annual return<span class="input-suffix"><input id="real-return" name="realReturn" type="number" min="-10" max="20" step="0.1" required><span>%</span></span></label>
-            <label>Annual inflation<span class="input-suffix"><input id="inflation" name="inflation" type="number" min="0" max="20" step="0.1" required><span>%</span></span></label>
-            <label>Pension access age<input id="pension-age" name="pensionAge" type="number" min="50" max="75" step="1" required></label>
-            <label>State Pension age<input id="state-age" name="stateAge" type="number" min="55" max="80" step="1" required></label>
-            <label>Full State Pension<span class="money-input"><span>£</span><input id="state-pension" name="statePension" type="number" min="0" step="0.01" required></span><small>annual, in today's money</small></label>
-            <label>Personal Allowance<span class="money-input"><span>£</span><input id="personal-allowance" name="personalAllowance" type="number" min="0" step="10" required></span></label>
-            <label>Basic-rate band after allowance<span class="money-input"><span>£</span><input id="basic-band" name="basicBand" type="number" min="0" step="100" required></span></label>
-            <label>Pension tax-free share<span class="input-suffix"><input id="tax-free-share" name="taxFreeShare" type="number" min="0" max="100" step="1" required><span>%</span></span></label>
-            <label>Lifetime tax-free cash cap<span class="money-input"><span>£</span><input id="tax-free-cap" name="taxFreeCap" type="number" min="0" step="1" required></span></label>
-          </div>
-        </details>
-
-        <div class="form-actions">
-          <button class="button button--primary" type="submit">Validate and save</button>
-          <button class="button button--quiet" id="reset-defaults" type="button">Reset defaults</button>
-          <button class="button button--danger" id="clear-data" type="button">Clear saved data</button>
-        </div>
-        <p class="form-error" id="form-error" role="alert"></p>
-      </form>
-    </section>
-
-    <section aria-labelledby="results-heading">
-      <div class="section-heading results-heading">
-        <div>
-          <p class="eyebrow">Projection</p>
-          <h2 id="results-heading">Your two drawdown paths</h2>
-        </div>
-        <p id="projection-basis" class="projection-basis"></p>
-      </div>
-
-      <div class="summary-grid" id="summary-grid"></div>
-
-      <article class="panel chart-panel">
-        <div class="chart-heading">
-          <div>
-            <h3>Available pot</h3>
-            <p>Year-end money available to withdraw in retirement-year pounds · dotted lines use a 1% real return</p>
-            <p class="chart-instructions" id="chart-instructions">Tap a year to keep its details open. With the chart focused, use Left/Right, Home, End, or Escape.</p>
-          </div>
-          <div class="legend" aria-hidden="true">
-            <span><i class="legend__line legend__line--three"></i>3% drawdown</span>
-            <span><i class="legend__line legend__line--four"></i>4% drawdown</span>
-            <span><i class="legend__line legend__line--downside"></i>1% interest worstcase</span>
-          </div>
-        </div>
-        <div class="chart-wrap">
-          <canvas id="balance-chart" tabindex="0" role="img" aria-label="Line chart comparing available pots for 3 and 4 percent drawdown scenarios at the selected return and a 1 percent real-return downside, with markers for private pension access, inheritance and State Pension" aria-describedby="chart-instructions chart-details"></canvas>
-          <div class="chart-tooltip" id="chart-tooltip" hidden></div>
-        </div>
-        <p class="chart-details" id="chart-details" aria-live="polite">No chart year selected.</p>
-      </article>
-
-      <div class="tables-grid" id="tables-grid"></div>
-    </section>
-
-    <section class="panel methodology" aria-labelledby="method-heading">
-      <h2 id="method-heading">How this model works</h2>
-      <div class="methodology__grid">
-        <p><strong>Monthly modelling.</strong> Investments grow and withdrawals occur monthly. Results are grouped into twelve-month projection years.</p>
-        <p><strong>Tax-efficient ordering.</strong> Stocks, ISA and cash bridge pension age. Thereafter, pension withdrawals use available Personal Allowance before the non-pension pot is spent.</p>
-        <p><strong>State Pension.</strong> State Pension replaces part of the portfolio withdrawal rather than increasing the target income.</p>
-        <p><strong>Tax limits.</strong> ISA withdrawals are tax-free. CGT, dividend tax, NI, charges beyond the entered real return, and future tax-rule changes are not modelled.</p>
-      </div>
-      <p class="disclaimer">This is an illustrative planning tool, not regulated financial advice. Real investment returns are volatile and tax rules can change.</p>
+      <section id="person-one-workspace" class="person-workspace" role="tabpanel" aria-labelledby="person-one-tab" data-person="personOne">
+        <div class="person-form-host"></div>
+        <div class="person-results-host"></div>
+      </section>
+      <section id="person-two-workspace" class="person-workspace" role="tabpanel" aria-labelledby="person-two-tab" data-person="personTwo" hidden>
+        <div class="person-form-host"></div>
+        <div class="person-results-host"></div>
+      </section>
+      <section id="household-panel" role="tabpanel" aria-labelledby="household-tab" hidden>
+        <div id="household-results" class="household-results"></div>
+      </section>
     </section>
   </main>
 
