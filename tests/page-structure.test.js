@@ -20,6 +20,10 @@ test("financial engine loads before the DOM application", () => {
   assert.ok(html.indexOf('<script src="model.js">') < html.indexOf('<script src="app.js">'));
 });
 
+test("page uses the local retirement-modeller favicon", () => {
+  assert.match(html, /<link rel="icon" type="image\/svg\+xml" href="favicon\.svg">/);
+});
+
 test("every app input mapping has a matching HTML control", () => {
   const fieldBlock = app.match(/const fields = \{([\s\S]*?)\n\};/)[1];
   const ids = [...fieldBlock.matchAll(/:\s*"([^"]+)"/g)].map(match => match[1]);

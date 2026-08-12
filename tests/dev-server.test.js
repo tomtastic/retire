@@ -27,7 +27,7 @@ test("serves the index and application assets with appropriate content types", a
   assert.match(index.headers.get("content-type"), /^text\/html/);
   assert.match(await index.text(), /Retirement Drawdown Modeller/);
 
-  for (const [asset, type] of [["styles.css", "text/css"], ["app.js", "text/javascript"], ["model.js", "text/javascript"]]) {
+  for (const [asset, type] of [["styles.css", "text/css"], ["app.js", "text/javascript"], ["model.js", "text/javascript"], ["favicon.svg", "image/svg\\+xml"]]) {
     const response = await fetch(`${origin}/${asset}`);
     assert.equal(response.status, 200);
     assert.match(response.headers.get("content-type"), new RegExp(`^${type}`));
