@@ -172,18 +172,18 @@ function buildPersonWorkspace(personKey) {
     fieldLabel("Early-income uplift", el("span", { className: "range-input" }, range, context.boostOutput))
   );
   context.boostNote = el("p", { id: `${prefix}-boost-note`, className: "field-help", text: "0–200% in 5-point steps. The uplift applies to both drawdown scenarios until the selected birthday." });
+  context.careGuidance = el("aside", { id: `${prefix}-care-guidance`, className: "care-guidance", "aria-live": "polite" });
   context.earlyPreview = el("div", { id: `${prefix}-early-income-preview`, className: "early-income-preview", "aria-live": "polite" });
-  boost.fieldset.append(context.earlyPreview, context.boostNote);
+  boost.fieldset.append(context.careGuidance, context.earlyPreview, context.boostNote);
 
   context.assumptionsDetails = el("details", {}, el("summary", { text: "Modelling assumptions" }), context.assumptionsGrid = el("div", { className: "assumptions-grid" }));
   context.countryNote = el("p", { className: "field-help country-method-note" });
-  context.careGuidance = el("aside", { id: `${prefix}-care-guidance`, className: "care-guidance", "aria-live": "polite" });
 
   const submit = el("button", { className: "button button--primary", type: "submit", text: "Validate and save" });
   const reset = el("button", { id: `${prefix}-reset-defaults`, className: "button button--quiet", type: "button", text: "Reset defaults" });
   const clear = el("button", { id: `${prefix}-clear-data`, className: "button button--danger", type: "button", text: "Clear saved data" });
   context.error = el("p", { id: `${prefix}-form-error`, className: "form-error", role: "alert" });
-  form.append(...(personKey === "personOne" ? [] : [profile.fieldset]), dates.fieldset, assets.fieldset, inheritance.fieldset, boost.fieldset, context.assumptionsDetails, context.countryNote, context.careGuidance,
+  form.append(...(personKey === "personOne" ? [] : [profile.fieldset]), dates.fieldset, assets.fieldset, inheritance.fieldset, boost.fieldset, context.assumptionsDetails, context.countryNote,
     el("div", { className: "form-actions" }, submit, reset, clear), context.error);
 
   workspace.querySelector(".person-form-host").replaceChildren(form);
@@ -721,7 +721,7 @@ function renderTable(result, values, format) {
   const meta = ACCOUNT_META[values.country];
   const maxBalance = Math.max(1, result.startingBalance, ...result.rows.map(row => row.balance));
   const headings = values.country === "UK"
-    ? ["Year(s)", "Age(s)", "Net / month", "Pension pot", "Available pot", "Pot mix"]
+    ? ["Year(s)", "Age(s)", "Net / month", ["Pension", "pot"], ["Available", "pot"], "Pot mix"]
     : ["Year(s)", "Age(s)", "Net / month", ["Traditional", "accounts"], ["Available", "pot"], "Account mix"];
   const head = el("thead", {}, el("tr", {}, ...headings.map(tableHeading)));
   const body = el("tbody");

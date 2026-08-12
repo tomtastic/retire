@@ -93,7 +93,7 @@ test("USA and UK charts use country-appropriate markers", () => {
 test("projection tables are currency-aware, account-aware and horizontally scrollable", () => {
   assert.match(app, /ACCOUNT_META\[values\.country\]/);
   assert.match(app, /\["Traditional", "accounts"\]/);
-  assert.match(app, /"Pension pot"/);
+  assert.match(app, /\["Pension", "pot"\]/);
   assert.match(app, /Swipe horizontally to see all columns/);
   assert.match(app, /tabIndex: 0, role: "region"/);
   assert.match(css, /\.table-scroll \{ max-height: none; overflow-x: auto; \}/);
@@ -108,6 +108,11 @@ test("projection tables group unchanged years and wrap the wide USA headings", (
   assert.match(app, /\["Available", "pot"\]/);
   assert.match(css, /\.table-heading--wrapped \{[^}]*white-space: normal/);
   assert.match(app, /in today's money\.`, el\("br"\), "Grouped where/);
+});
+
+test("care guidance sits between the early-income controls and preview cards", () => {
+  assert.match(app, /boost\.fieldset\.append\(context\.careGuidance, context\.earlyPreview, context\.boostNote\)/);
+  assert.doesNotMatch(app, /context\.countryNote, context\.careGuidance/);
 });
 
 test("both people receive full deferred care-reserve guidance", () => {
