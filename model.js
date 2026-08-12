@@ -1,3 +1,4 @@
+/** Expose the dependency-free financial model in browsers and CommonJS. */
 (function initialiseRetirementModel(root, factory) {
   "use strict";
   const api = factory();
@@ -34,6 +35,12 @@
     taxFreeCap: 268275
   });
 
+  /**
+   * Parse an ISO calendar date in local time without UTC date shifting.
+   * @param {string} value Date in `YYYY-MM-DD` format.
+   * @returns {Date} Parsed local date at noon.
+   * @throws {TypeError|RangeError} When the value is malformed or not a calendar date.
+   */
   function parseLocalDate(value) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(value || "")) throw new TypeError("Dates must use YYYY-MM-DD format.");
     const [year, month, day] = value.split("-").map(Number);
@@ -44,18 +51,36 @@
     return date;
   }
 
+  /**
+   * Return a copy of a date shifted by whole calendar years.
+   * @param {Date} date Source date.
+   * @param {number} years Calendar years to add.
+   * @returns {Date} Shifted date.
+   */
   function addYears(date, years) {
     const copy = new Date(date);
     copy.setFullYear(copy.getFullYear() + years);
     return copy;
   }
 
+  /**
+   * Return a copy of a date shifted by whole calendar months.
+   * @param {Date} date Source date.
+   * @param {number} months Calendar months to add.
+   * @returns {Date} Shifted date.
+   */
   function addMonths(date, months) {
     const copy = new Date(date);
     copy.setMonth(copy.getMonth() + months);
     return copy;
   }
 
+  /**
+   * Calculate age in completed years on a given date.
+   * @param {Date} date Date at which to measure age.
+   * @param {Date} birthDate Birth date.
+   * @returns {number} Completed years of age.
+   */
   function ageAt(date, birthDate) {
     let age = date.getFullYear() - birthDate.getFullYear();
     const beforeBirthday = date.getMonth() < birthDate.getMonth() ||
@@ -64,6 +89,12 @@
     return age;
   }
 
+  /**
+   * Collect validation errors for a model input set and drawdown rate.
+   * @param {Object<string, *>} values Candidate model values.
+   * @param {number} rate Initial annual drawdown rate as a decimal.
+   * @returns {string[]} Validation messages.
+   */
   function validateModelInputs(values, rate) {
     const errors = [];
     let birth;
@@ -101,6 +132,13 @@
     return errors;
   }
 
+  /**
+   * Project one retirement drawdown plan month by month and report annual rows.
+   * @param {Object<string, *>} values Valid model assumptions and starting balances.
+   * @param {number} rate Initial annual drawdown rate as a decimal.
+   * @returns {Object} Scenario metadata, annual rows, balances, and depletion timing.
+   * @throws {RangeError} When any model input is invalid.
+   */
   function scenario(values, rate) {
     const errors = validateModelInputs(values, rate);
     if (errors.length) throw new RangeError(errors.join(" "));
@@ -130,6 +168,11 @@
     let depletedAt = null;
     const rows = [];
 
+    /**
+     * Withdraw proportionally from stocks, ISA, and cash.
+     * @param {number} amount Requested withdrawal.
+     * @returns {number} Amount actually withdrawn.
+     */
     function drawFromAccessible(amount) {
       const componentTotal = stocks + isa + cash;
       const actual = Math.min(Math.max(0, amount), Math.max(0, accessible));
@@ -142,6 +185,11 @@
       return actual;
     }
 
+    /**
+     * Withdraw proportionally from both private pension components.
+     * @param {number} amount Requested withdrawal.
+     * @returns {number} Amount actually withdrawn.
+     */
     function drawFromPension(amount) {
       const componentTotal = pensionOne + pensionTwo;
       const actual = Math.min(Math.max(0, amount), Math.max(0, pension));
@@ -284,6 +332,13 @@
     };
   }
 
+  /**
+   * Calculate simplified UK basic- and higher-rate income tax.
+   * @param {number} income Annual taxable-source income before allowance.
+   * @param {number} allowance Personal allowance.
+   * @param {number} basicBand Width of the basic-rate band.
+   * @returns {number} Annual income tax.
+   */
   function calculateIncomeTax(income, allowance, basicBand) {
     if (![income, allowance, basicBand].every(Number.isFinite) || income < 0 || allowance < 0 || basicBand < 0) {
       throw new RangeError("Tax inputs must be finite non-negative numbers.");
@@ -294,11 +349,23 @@
     return basic + higher;
   }
 
+  /**
+   * Find the first projected balance at or after a target age.
+   * @param {Object} result Calculated scenario.
+   * @param {number} targetAge Age to inspect.
+   * @returns {number|null} Balance, or `null` when the horizon is too short.
+   */
   function balanceAtAge(result, targetAge) {
     const row = result.rows.find(item => item.age >= targetAge);
     return row ? row.balance : null;
   }
 
+  /**
+   * Classify a balance relative to the care-reserve target.
+   * @param {number} balance Balance to classify.
+   * @param {number} [targetBalance=CARE_RESERVE] Reserve target.
+   * @returns {"surplus"|"shortfall"|"on-target"} Reserve status.
+   */
   function careReserveStatus(balance, targetBalance = CARE_RESERVE) {
     if (!Number.isFinite(balance) || !Number.isFinite(targetBalance) || targetBalance < 0) {
       throw new RangeError("Care-reserve values must be finite and the target non-negative.");
@@ -308,6 +375,15 @@
     return "on-target";
   }
 
+  /**
+   * Solve the early-income uplift that approaches the target care reserve.
+   * @param {Object<string, *>} values Valid model values.
+   * @param {number} rate Initial drawdown rate as a decimal.
+   * @param {number} [targetAge=CARE_RESERVE_AGE] Reserve assessment age.
+   * @param {number} [targetBalance=CARE_RESERVE] Desired remaining balance.
+   * @param {number} [maxBoost=MAX_BOOST] Maximum uplift percentage to test.
+   * @returns {number|null} Suggested uplift, or `null` when the tested range cannot safely reach the target.
+   */
   function solveBoostForCareReserve(values, rate, targetAge = CARE_RESERVE_AGE, targetBalance = CARE_RESERVE, maxBoost = MAX_BOOST) {
     const currentBalance = balanceAtAge(scenario(values, rate), targetAge);
     if (currentBalance == null || currentBalance <= targetBalance) return values.boost;
@@ -326,6 +402,13 @@
     return depletesBeforeAge(recommendedResult, values, targetAge) ? null : high;
   }
 
+  /**
+   * Solve a broader initial drawdown rate that approaches the care-reserve target.
+   * @param {Object<string, *>} values Valid model values.
+   * @param {number} [targetAge=CARE_RESERVE_AGE] Reserve assessment age.
+   * @param {number} [targetBalance=CARE_RESERVE] Desired remaining balance.
+   * @returns {number|null} Suggested decimal rate, or `null` when unavailable or unsafe.
+   */
   function solveRateForCareReserve(values, targetAge = CARE_RESERVE_AGE, targetBalance = CARE_RESERVE) {
     let low = 0.001;
     let high = 0.12;
@@ -341,6 +424,13 @@
     return depletesBeforeAge(recommended, values, targetAge) ? null : high;
   }
 
+  /**
+   * Find the largest slider uplift that preserves the pre-pension bridge pots.
+   * @param {Object<string, *>} values Valid model values.
+   * @param {number} [maxBoost=MAX_BOOST] Maximum uplift percentage to test.
+   * @param {number[]} [rates] Drawdown rates that must all remain safe.
+   * @returns {number} Safe uplift percentage rounded down to a slider step.
+   */
   function maxBoostBeforePensionAccess(values, maxBoost = MAX_BOOST, rates = [0.03, 0.04]) {
     const birth = parseLocalDate(values.birthDate);
     const retirement = parseLocalDate(values.retirementDate);
@@ -359,6 +449,13 @@
     return Math.max(0, Math.floor(low / 5) * 5);
   }
 
+  /**
+   * Test whether a scenario first becomes underfunded before a target age.
+   * @param {Object} result Calculated scenario.
+   * @param {Object<string, *>} values Model values containing the birth date.
+   * @param {number} targetAge Age boundary.
+   * @returns {boolean} Whether depletion occurs before the boundary.
+   */
   function depletesBeforeAge(result, values, targetAge) {
     if (!result.depletedAt) return false;
     return ageAt(result.depletedAt, parseLocalDate(values.birthDate)) < targetAge;

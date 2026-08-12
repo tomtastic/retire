@@ -3,6 +3,12 @@
 const path = require("node:path");
 const { version } = require("eslint/package.json");
 
+/**
+ * Convert ESLint formatter results into a SARIF 2.1.0 document.
+ * @param {Array<Object>} results ESLint file results.
+ * @param {{cwd?: string, rulesMeta?: Object<string, Object>}} [context={}] Formatter context.
+ * @returns {string} Serialised SARIF document.
+ */
 module.exports = function formatSarif(results, context = {}) {
   const cwd = context.cwd || process.cwd();
   const rulesMeta = context.rulesMeta || {};

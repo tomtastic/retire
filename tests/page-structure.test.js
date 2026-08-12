@@ -141,8 +141,10 @@ test("hidden developer controls save the asset and inheritance preset", () => {
   assert.match(app, /inheritanceAmount: "inheritanceAmount"/);
   assert.match(app, /removeDeveloperPresetButton\.addEventListener\("click"/);
   assert.match(app, /localStorage\.removeItem\(DEVELOPER_STORAGE_KEY\)/);
+  assert.match(app, /function closeDeveloperToolsSoon\(\)[\s\S]*setTimeout[\s\S]*developerTools\.hidden = true/);
+  assert.match(app, /developerStatus\.textContent = ""/);
   assert.match(css, /\.developer-tools\[hidden\] \{ display: none; \}/);
-  assert.match(css, /\.developer-corner \{ position: fixed;[^}]*top: -48px; right: -48px/);
+  assert.match(css, /\.developer-corner \{ position: fixed;[^}]*top: -24px; right: -24px; width: 56px; height: 56px/);
 });
 
 test("reset defaults includes the developer asset preset", () => {

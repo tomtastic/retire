@@ -72,6 +72,7 @@ let tooltipIndex = -1;
 let tooltipWidth = 0;
 let boostLimitCacheKey = "";
 let boostLimitCacheValue = MAX_BOOST;
+let developerCloseTimer = null;
 
 const money = new Intl.NumberFormat("en-GB", {
   style: "currency",
@@ -86,6 +87,7 @@ const compactMoney = new Intl.NumberFormat("en-GB", {
   maximumFractionDigits: 2
 });
 
+/** Load persisted form values, applying defaults, aliases, and the developer preset. */
 function readSavedValues() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -103,6 +105,10 @@ function readSavedValues() {
   }
 }
 
+/**
+ * Read and normalise asset values from the optional developer preset.
+ * @returns {Object<string, number>} Valid non-negative values keyed by canonical field name.
+ */
 function readDeveloperAssets() {
   try {
     const raw = localStorage.getItem(DEVELOPER_STORAGE_KEY);
@@ -134,6 +140,10 @@ function readDeveloperAssets() {
   }
 }
 
+/**
+ * Populate every mapped form control.
+ * @param {Object<string, string|number|null>} values Form values keyed by model field name.
+ */
 function populateForm(values) {
   for (const [key, id] of Object.entries(fields)) {
     const input = document.getElementById(id);
@@ -142,12 +152,18 @@ function populateForm(values) {
   updateBoostOutput();
 }
 
+/** Synchronise the boost range's visible percentage output. */
 function updateBoostOutput() {
   const value = boostInput.value;
   boostOutput.value = `${value}%`;
   boostOutput.textContent = `${value}%`;
 }
 
+/**
+ * Clamp the requested early-income boost to the safe pre-pension bridge limit.
+ * @param {Object<string, *>} values Current model values.
+ * @returns {Object<string, *>} The original or clamped model values.
+ */
 function constrainBoost(values) {
   const { boost, ...limitValues } = values;
   const cacheKey = JSON.stringify(limitValues);
@@ -169,6 +185,10 @@ function constrainBoost(values) {
   return { ...values, boost: boostLimitCacheValue };
 }
 
+/**
+ * Read mapped controls into the value shape expected by the financial model.
+ * @returns {Object<string, string|number|null>} Current form values.
+ */
 function getValues() {
   const result = {};
   for (const [key, id] of Object.entries(fields)) {
@@ -178,6 +198,12 @@ function getValues() {
   return result;
 }
 
+/**
+ * Validate browser constraints and cross-field model rules.
+ * @param {Object<string, *>} values Candidate model values.
+ * @param {boolean} [report=false] Whether to show native browser validation messages.
+ * @returns {string} An error message, or an empty string when valid.
+ */
 function validate(values, report = false) {
   const valid = report ? form.reportValidity() : form.checkValidity();
   if (!valid) return "Please correct the highlighted field.";
@@ -195,6 +221,10 @@ function validate(values, report = false) {
   return "";
 }
 
+/**
+ * Calculate all scenarios and replace the current result views.
+ * @param {Object<string, *>} values Valid model values.
+ */
 function render(values) {
   const three = scenario(values, 0.03);
   const four = scenario(values, 0.04);
@@ -225,6 +255,12 @@ function render(values) {
   if (needsCareRecommendation) scheduleCareGuidance(values, three, four);
 }
 
+/**
+ * Build the standard and optional early annual-draw descriptions for a plan.
+ * @param {Object<string, *>} values Current model values.
+ * @param {Object} result Calculated plan result.
+ * @returns {{main: string, early?: string}} Summary-card detail text.
+ */
 function annualDrawDetail(values, result) {
   const standard = `${money.format(result.baseAnnualIncome)} standard annual draw`;
   const retirementAge = ageAt(parseLocalDate(values.retirementDate), parseLocalDate(values.birthDate));
@@ -237,11 +273,25 @@ function annualDrawDetail(values, result) {
   };
 }
 
+/**
+ * Describe when a downside scenario first reaches zero.
+ * @param {Object} result Calculated downside plan.
+ * @returns {string} Warning text, or an empty string when funds remain.
+ */
 function downsideWarning(result) {
   const zeroRow = result.rows.find(row => row.balance < 0.01);
   return zeroRow ? `At a 1% real return, this plan reaches £0 in ${zeroRow.year} (age ${zeroRow.age}).` : "";
 }
 
+/**
+ * Build a result summary card.
+ * @param {string} label Card label.
+ * @param {string} value Primary formatted value.
+ * @param {{main: string, early?: string}} detail Supporting text.
+ * @param {string} [colour=""] Optional fixed colour modifier.
+ * @param {string} [warning=""] Optional downside warning.
+ * @returns {HTMLElement} The complete card element.
+ */
 function summaryCard(label, value, detail, colour = "", warning = "") {
   const article = document.createElement("article");
   article.className = `summary-card${colour ? ` summary-card--${colour}` : ""}${warning ? " summary-card--warning" : ""}`;
@@ -281,6 +331,12 @@ function summaryCard(label, value, detail, colour = "", warning = "") {
   return article;
 }
 
+/**
+ * Render first-year income with and without the early-spending uplift.
+ * @param {Object<string, *>} values Current model values.
+ * @param {Object} three Three-percent plan result.
+ * @param {Object} four Four-percent plan result.
+ */
 function renderEarlyIncomePreview(values, three, four) {
   const birth = parseLocalDate(values.birthDate);
   const retirement = parseLocalDate(values.retirementDate);
@@ -338,6 +394,14 @@ function renderEarlyIncomePreview(values, three, four) {
   earlyIncomePreview.replaceChildren(itemThree, itemFour, note);
 }
 
+/**
+ * Render age-90 reserve guidance and optionally solve spend-more recommendations.
+ * @param {Object<string, *>} values Current model values.
+ * @param {Object} three Three-percent plan result.
+ * @param {Object} four Four-percent plan result.
+ * @param {boolean} [calculateRecommendation=true] Whether to run the expensive solvers now.
+ * @returns {boolean} Whether a deferred recommendation render is required.
+ */
 function renderCareGuidance(values, three, four, calculateRecommendation = true) {
   const plans = [three, four].map(result => ({
     result,
@@ -439,10 +503,21 @@ function renderCareGuidance(values, three, four, calculateRecommendation = true)
   return false;
 }
 
+/**
+ * Insert a separator between each item without converting rich-text parts to HTML.
+ * @param {Array<*>} items Items to interleave.
+ * @param {string} separator Separator text.
+ * @returns {Array<*>} Interleaved items.
+ */
 function interleave(items, separator) {
   return items.flatMap((item, index) => index === 0 ? [item] : [separator, item]);
 }
 
+/**
+ * Append plain and strongly emphasised text parts using DOM nodes.
+ * @param {Node} parent Destination node.
+ * @param {string|Object|Array<string|Object>} parts Plain strings or `{strong: string}` values.
+ */
 function appendRichText(parent, parts) {
   for (const part of Array.isArray(parts) ? parts.flat() : [parts]) {
     if (typeof part === "string") {
@@ -455,6 +530,13 @@ function appendRichText(parent, parts) {
   }
 }
 
+/**
+ * Replace the care-guidance panel while preserving its accessibility state.
+ * @param {string} className Fixed panel classes.
+ * @param {boolean} busy Whether recommendation calculation is pending.
+ * @param {string} title Guidance heading.
+ * @param {Array<string|Array<*>>} paragraphs Rich-text paragraph definitions.
+ */
 function updateCareGuidance(className, busy, title, paragraphs) {
   careGuidance.className = className;
   if (busy) careGuidance.setAttribute("aria-busy", "true");
@@ -477,6 +559,7 @@ function updateCareGuidance(className, busy, title, paragraphs) {
   careGuidance.replaceChildren(icon, content);
 }
 
+/** Cancel any queued care-recommendation calculation. */
 function cancelCareGuidance() {
   careVersion += 1;
   if (!careJob) return;
@@ -485,6 +568,12 @@ function cancelCareGuidance() {
   careJob = null;
 }
 
+/**
+ * Defer care-reserve solving until input activity has settled and the browser is idle.
+ * @param {Object<string, *>} values Current model values.
+ * @param {Object} three Three-percent plan result.
+ * @param {Object} four Four-percent plan result.
+ */
 function scheduleCareGuidance(values, three, four) {
   cancelCareGuidance();
   const version = careVersion;
@@ -504,6 +593,11 @@ function scheduleCareGuidance(values, three, four) {
   }, 150) };
 }
 
+/**
+ * Build a complete projection table card for one drawdown plan.
+ * @param {Object} result Calculated plan result.
+ * @returns {HTMLElement} Projection table card.
+ */
 function renderTable(result) {
   const rateLabel = `${Math.round(result.rate * 100)}% drawdown`;
   const groupedRows = groupTableRows(result.rows);
@@ -598,18 +692,34 @@ function renderTable(result) {
   return article;
 }
 
+/**
+ * Create a table-data cell containing plain text.
+ * @param {string} [text=""] Cell text.
+ * @returns {HTMLTableCellElement} Table cell.
+ */
 function tableCell(text = "") {
   const cell = document.createElement("td");
   cell.textContent = text;
   return cell;
 }
 
+/**
+ * Create a plain-text paragraph.
+ * @param {string} text Paragraph text.
+ * @returns {HTMLParagraphElement} Paragraph node.
+ */
 function paragraph(text) {
   const element = document.createElement("p");
   element.textContent = text;
   return element;
 }
 
+/**
+ * Create a labelled table note.
+ * @param {string} text Note text.
+ * @param {string} className Fixed note classes.
+ * @returns {HTMLElement} Small-note element.
+ */
 function note(text, className) {
   const element = document.createElement("small");
   element.className = className;
@@ -617,6 +727,12 @@ function note(text, className) {
   return element;
 }
 
+/**
+ * Create a colour-coded projection event label.
+ * @param {string} text Event label.
+ * @param {string} modifier Fixed event colour modifier.
+ * @returns {HTMLSpanElement} Event tag.
+ */
 function eventTag(text, modifier) {
   const element = document.createElement("span");
   element.className = `event-tag event-tag--${modifier}`;
@@ -624,6 +740,14 @@ function eventTag(text, modifier) {
   return element;
 }
 
+/**
+ * Build the accessible stacked pot-mix bar graphic for a projection row.
+ * @param {Object<string, number>} pots Component balances.
+ * @param {number} total Total portfolio balance used in the accessible label.
+ * @param {number} scale Shared vertical bar scale.
+ * @param {number} stateIncome Annual State Pension income.
+ * @returns {HTMLElement} Pot bars or an empty-state marker.
+ */
 function renderPotMix(pots, total, scale, stateIncome) {
   const entries = [
     ["Stocks", "St", pots.stocks, "stocks", scale],
@@ -660,6 +784,11 @@ function renderPotMix(pots, total, scale, stateIncome) {
   return bars;
 }
 
+/**
+ * Explain the order and timing in which a plan consumes its pots.
+ * @param {Object} result Calculated plan result.
+ * @returns {HTMLElement} Narrative section.
+ */
 function renderPotNarrative(result) {
   const pensionStart = result.rows.find(row => row.pensionStarted);
   const stateStart = result.rows.find(row => row.stateStarted);
@@ -729,6 +858,11 @@ function renderPotNarrative(result) {
   return narrative;
 }
 
+/**
+ * Group adjacent projection years with unchanged rounded income and depletion state.
+ * @param {Array<Object>} rows Annual projection rows.
+ * @returns {Array<{start: Object, end: Object}>} Display row ranges.
+ */
 function groupTableRows(rows) {
   const grouped = [];
   let index = 0;
@@ -753,10 +887,23 @@ function groupTableRows(rows) {
   return grouped;
 }
 
+/**
+ * Test whether a projection row must be displayed separately as a key event.
+ * @param {Object} row Annual projection row.
+ * @returns {boolean} Whether the row contains a key event.
+ */
 function isKeyEvent(row) {
   return row.pensionStarted || row.inheritedThisYear || row.stateStarted || row.depletionStarted;
 }
 
+/**
+ * Draw main and downside available-pot paths and cache hover geometry.
+ * @param {Object} three Three-percent plan result.
+ * @param {Object} four Four-percent plan result.
+ * @param {Object} downsideThree Three-percent downside result.
+ * @param {Object} downsideFour Four-percent downside result.
+ * @param {Object<string, *>} values Current model values.
+ */
 function drawChart(three, four, downsideThree, downsideFour, values) {
   const rect = canvas.getBoundingClientRect();
   const dpr = Math.max(1, window.devicePixelRatio || 1);
@@ -841,6 +988,15 @@ function drawChart(three, four, downsideThree, downsideFour, values) {
   tooltip.hidden = true;
 }
 
+/**
+ * Draw the early higher-income interval below the chart axis.
+ * @param {CanvasRenderingContext2D} ctx Canvas drawing context.
+ * @param {Object} result Calculated plan result.
+ * @param {Function} xFor Convert a row index to an x-coordinate.
+ * @param {number} height Canvas display height.
+ * @param {Object<string, number>} pad Chart padding.
+ * @param {Object<string, *>} values Current model values.
+ */
 function drawHigherIncomeBand(ctx, result, xFor, height, pad, values) {
   const endIndex = result.rows.findIndex(row => row.age >= values.boostUntilAge);
   const lastIndex = result.rows.length - 1;
@@ -862,6 +1018,17 @@ function drawHigherIncomeBand(ctx, result, xFor, height, pad, values) {
   ctx.restore();
 }
 
+/**
+ * Plot one series on the balance chart.
+ * @param {CanvasRenderingContext2D} ctx Canvas drawing context.
+ * @param {Array<Object>} rows Projection rows.
+ * @param {Function} xFor Convert a row index to an x-coordinate.
+ * @param {Function} yFor Convert a value to a y-coordinate.
+ * @param {string} colour Stroke colour.
+ * @param {number[]} [dash=[]] Canvas dash pattern.
+ * @param {number} [lineWidth=3] Stroke width.
+ * @param {string} [valueKey="availablePot"] Row property to plot.
+ */
 function plotLine(ctx, rows, xFor, yFor, colour, dash = [], lineWidth = 3, valueKey = "availablePot") {
   ctx.save();
   ctx.strokeStyle = colour;
@@ -879,11 +1046,20 @@ function plotLine(ctx, rows, xFor, yFor, colour, dash = [], lineWidth = 3, value
   ctx.restore();
 }
 
+/**
+ * Round a chart maximum up to a readable half-magnitude boundary.
+ * @param {number} value Unrounded maximum.
+ * @returns {number} Rounded axis ceiling.
+ */
 function niceCeiling(value) {
   const magnitude = 10 ** Math.floor(Math.log10(Math.max(1, value)));
   return Math.ceil(value / magnitude * 2) / 2 * magnitude;
 }
 
+/**
+ * Validate, persist, and render the latest form values.
+ * @param {boolean} [report=false] Whether to show native validation messages.
+ */
 function saveAndRender(report = false) {
   let values = getValues();
   const error = validate(values, report);
@@ -899,6 +1075,7 @@ function saveAndRender(report = false) {
   render(values);
 }
 
+/** Coalesce rapid form changes into one animation-frame render. */
 function scheduleRender() {
   if (renderFrame != null) cancelAnimationFrame(renderFrame);
   renderFrame = requestAnimationFrame(() => {
@@ -910,6 +1087,7 @@ function scheduleRender() {
   });
 }
 
+/** Persist valid values after the input save debounce expires. */
 function saveLatestValues() {
   saveTimer = null;
   const values = getValues();
@@ -1009,11 +1187,27 @@ canvas.addEventListener("pointerleave", () => {
   tooltip.hidden = true;
 });
 
+/** Collapse the developer preset controls shortly after an action completes. */
+function closeDeveloperToolsSoon() {
+  clearTimeout(developerCloseTimer);
+  developerCloseTimer = setTimeout(() => {
+    developerCloseTimer = null;
+    developerCorner.setAttribute("aria-expanded", "false");
+    developerTools.hidden = true;
+    developerCorner.focus();
+  }, 1500);
+}
+
 developerCorner.addEventListener("click", () => {
+  clearTimeout(developerCloseTimer);
+  developerCloseTimer = null;
   const expanded = developerCorner.getAttribute("aria-expanded") === "true";
   developerCorner.setAttribute("aria-expanded", String(!expanded));
   developerTools.hidden = expanded;
-  if (!expanded) saveDeveloperPresetButton.focus();
+  if (!expanded) {
+    developerStatus.textContent = "";
+    saveDeveloperPresetButton.focus();
+  }
 });
 
 saveDeveloperPresetButton.addEventListener("click", () => {
@@ -1021,6 +1215,7 @@ saveDeveloperPresetButton.addEventListener("click", () => {
   const error = validate(values, true);
   if (error) {
     developerStatus.textContent = "Correct the highlighted fields first.";
+    closeDeveloperToolsSoon();
     return;
   }
   const assets = {
@@ -1038,6 +1233,7 @@ saveDeveloperPresetButton.addEventListener("click", () => {
   } catch {
     developerStatus.textContent = "Browser storage unavailable.";
   }
+  closeDeveloperToolsSoon();
 });
 
 removeDeveloperPresetButton.addEventListener("click", () => {
@@ -1047,6 +1243,7 @@ removeDeveloperPresetButton.addEventListener("click", () => {
   } catch {
     developerStatus.textContent = "Browser storage unavailable.";
   }
+  closeDeveloperToolsSoon();
 });
 
 populateForm(readSavedValues());

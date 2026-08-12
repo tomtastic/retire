@@ -16,7 +16,7 @@
 
 .width-note { display: none; position: fixed; z-index: 10; top: 8px; right: 12px; margin: 0; padding: 4px 7px; border: 1px solid #d8dfd7; border-radius: 6px; background: rgb(255 254 249 / 92%); color: var(--muted); font-size: .63rem; line-height: 1.25; pointer-events: none; }
 
-.developer-corner { position: fixed; z-index: 20; top: -48px; right: -48px; width: 112px; height: 112px; padding: 0; border: 0; border-radius: 50%; background: linear-gradient(135deg, #16735f, #dc6f3d); box-shadow: 0 4px 18px rgb(24 50 47 / 24%); cursor: pointer; }
+.developer-corner { position: fixed; z-index: 20; top: -24px; right: -24px; width: 56px; height: 56px; padding: 0; border: 0; border-radius: 50%; background: linear-gradient(135deg, #16735f, #dc6f3d); box-shadow: 0 2px 9px rgb(24 50 47 / 24%); cursor: pointer; }
 .developer-corner:hover, .developer-corner:focus-visible { outline: 3px solid rgb(22 115 95 / 35%); outline-offset: 3px; }
 .developer-tools { position: fixed; z-index: 21; top: 16px; right: 16px; display: flex; flex-direction: column; align-items: stretch; gap: 7px; max-width: calc(100vw - 32px); padding: 9px; border: 1px solid var(--line); border-radius: 11px; background: var(--panel); box-shadow: var(--shadow); }
 .developer-tools[hidden] { display: none; }
