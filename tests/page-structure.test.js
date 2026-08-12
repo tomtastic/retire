@@ -80,6 +80,10 @@ test("projection tables show the pot currently available to withdraw", () => {
   assert.doesNotMatch(app, /"End balance"/);
 });
 
+test("projection tables omit the repeated pot-mix allocation explanation", () => {
+  assert.doesNotMatch(app, /Pot mix bars: Stocks · ISA · Cash · Pension\/SIPP 1 · Pension\/SIPP 2/);
+});
+
 test("summary plan cards identify their values as end balances", () => {
   assert.match(app, /summaryCard\("3% plan · end balance"/);
   assert.match(app, /summaryCard\("4% plan · end balance"/);

@@ -670,8 +670,7 @@ function renderTable(result) {
   heading.append(
     title,
     paragraph(`${depletedMessage} Grouped where income is unchanged; the available pot is at range end.`),
-    paragraph("The available pot is stocks, ISA and cash before pension access, and includes pensions once unlocked · key events are colour coded"),
-    paragraph("Pot mix bars: Stocks · ISA · Cash · Pension/SIPP 1 · Pension/SIPP 2. Withdrawals within each group are allocated proportionally.")
+    paragraph("The available pot is stocks, ISA and cash before pension access, and includes pensions once unlocked · key events are colour coded")
   );
 
   const scroll = document.createElement("div");
