@@ -50,12 +50,21 @@ test("country-specific account metadata contains every UK and USA account", () =
 });
 
 test("both people receive the same accessible early-income slider and preview", () => {
-  assert.match(app, /input\(context, "boost", "range", \{ min: "0", max: "200", step: "5"/);
+  assert.match(app, /input\(context, "boost", "range", \{ min: "0", max: "200", step: "5", list: boostTicksId/);
+  assert.match(app, /Array\.from\(\{ length: 41 \}/);
+  assert.match(app, /el\("datalist", \{ id: boostTicksId \}/);
   assert.match(app, /input\(context, "boostUntilAge", "number", \{ min: "40", max: "120", step: "1"/);
   assert.match(app, /context\.boostOutput = el\("output"/);
   assert.match(app, /renderEarlyIncomePreview\(context, values, three, four, format\)/);
   assert.match(app, /baselineThree = scenario\(\{ \.\.\.values, boost: 0 \}, 0\.03\)/);
   assert.match(css, /\.range-input input\[type="range"\] \{ min-height: 44px; \}/);
+});
+
+test("empty USA asset profiles display numeric zero balances", () => {
+  for (const key of ["account401k", "traditionalIRA", "rothIRA", "taxableBrokerage"]) {
+    assert.match(app, new RegExp(`${key}: byType`));
+  }
+  assert.equal((app.match(/\?\? 0/g) || []).length >= 4, true);
 });
 
 test("early-income increases are blocked when the 3% bridge becomes unsafe", () => {

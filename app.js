@@ -162,11 +162,13 @@ function buildPersonWorkspace(personKey) {
   inheritance.fieldset.append(el("p", { className: "field-help", text: "The future amount is converted to retirement-year purchasing power using the inflation assumption." }));
 
   const boost = makeFieldset("Higher early income", "form-grid form-grid--inheritance");
-  const range = input(context, "boost", "range", { min: "0", max: "200", step: "5", required: true, "aria-describedby": `${prefix}-boost-note` });
+  const boostTicksId = `${prefix}-boost-ticks`;
+  const range = input(context, "boost", "range", { min: "0", max: "200", step: "5", list: boostTicksId, required: true, "aria-describedby": `${prefix}-boost-note` });
+  const boostTicks = el("datalist", { id: boostTicksId }, ...Array.from({ length: 41 }, (_, index) => el("option", { value: String(index * 5) })));
   context.boostOutput = el("output", { for: range.id, text: "40%" });
   boost.grid.append(
     fieldLabel("Higher income until age", input(context, "boostUntilAge", "number", { min: "40", max: "120", step: "1", required: true })),
-    fieldLabel("Early-income uplift", el("span", { className: "range-input" }, range, context.boostOutput))
+    fieldLabel("Early-income uplift", el("span", { className: "range-input" }, range, context.boostOutput, boostTicks))
   );
   context.boostNote = el("p", { id: `${prefix}-boost-note`, className: "field-help", text: "0–200% in 5-point steps. The uplift applies to both drawdown scenarios until the selected birthday." });
   context.careGuidance = el("aside", { id: `${prefix}-care-guidance`, className: "care-guidance", "aria-live": "polite" });
@@ -276,7 +278,12 @@ function formValues(context) {
 function populateForm(context, rawValues) {
   const values = normalizePerson(rawValues);
   const byType = Object.fromEntries((values.accounts || []).map(account => [account.type || account.kind, Number(account.balance) || 0]));
-  const aliases = { account401k: byType["401k"], traditionalIRA: byType.traditionalIRA, rothIRA: byType.rothIRA, taxableBrokerage: byType.taxableBrokerage };
+  const aliases = {
+    account401k: byType["401k"] ?? 0,
+    traditionalIRA: byType.traditionalIRA ?? 0,
+    rothIRA: byType.rothIRA ?? 0,
+    taxableBrokerage: byType.taxableBrokerage ?? 0
+  };
   for (const [key, control] of Object.entries(context.inputs)) {
     if (key === "country") control.value = context.profileCountry;
     else control.value = aliases[key] ?? values[key] ?? "";
