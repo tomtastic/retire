@@ -106,6 +106,13 @@ function input(context, key, type = "number", attributes = {}) {
   return control;
 }
 
+function selectInput(context, key, choices) {
+  const id = `${context.prefix}-${key.replace(/[A-Z]/g, char => `-${char.toLowerCase()}`)}`;
+  const control = el("select", { id, name: key }, ...choices.map(([value, text]) => el("option", { value, text })));
+  context.inputs[key] = control;
+  return control;
+}
+
 function suffixInput(context, key, suffix, attributes = {}) {
   return el("span", { className: "input-suffix" }, input(context, key, "number", attributes), el("span", { text: suffix }));
 }
@@ -234,15 +241,20 @@ function configureCountryFields(context, country) {
   );
   if (country === "UK") {
     context.assumptionsGrid.append(
+      fieldLabel("Income-tax residence", selectInput(context, "taxRegion", [
+        ["restOfUK", "England, Wales or Northern Ireland"],
+        ["scotland", "Scotland"]
+      ])),
+      fieldLabel("Earlier income in first tax year", moneyInput(context, "firstTaxYearPriorIncome", { step: "100", required: true }), "taxable income from 6 April to retirement"),
       fieldLabel("Pension access age", input(context, "pensionAge", "number", { min: "50", max: "75", step: "1", required: true })),
       fieldLabel("State Pension age", input(context, "stateAge", "number", { min: "55", max: "80", step: "1", required: true })),
       fieldLabel("Full State Pension", moneyInput(context, "statePension", { step: "0.01", required: true }), "annual, in today's money"),
-      fieldLabel("Personal Allowance", moneyInput(context, "personalAllowance", { step: "10", required: true })),
-      fieldLabel("Basic-rate band after allowance", moneyInput(context, "basicBand", { step: "100", required: true })),
+      fieldLabel("Personal Allowance", moneyInput(context, "personalAllowance", { step: "10", required: true }), "2026/27 nominal value"),
+      fieldLabel("Rest-of-UK basic-rate band", moneyInput(context, "basicBand", { step: "100", required: true }), "2026/27 value after allowance"),
       fieldLabel("Pension tax-free share", suffixInput(context, "taxFreeShare", "%", { min: "0", max: "100", step: "1", required: true })),
       fieldLabel("Lifetime tax-free cash cap", moneyInput(context, "taxFreeCap", { step: "1", required: true }))
     );
-    context.countryNote.textContent = "UK modelling includes State Pension and simplified pension income tax assumptions.";
+    context.countryNote.textContent = "UK pension and State Pension income is taxed by 6 April tax year using the selected regional bands.";
   } else {
     context.assumptionsGrid.append(
       fieldLabel("Penalty-free access age", input(context, "penaltyFreeAccessAge", "number", { min: "0", max: "100", step: "0.5", required: true })),
@@ -264,7 +276,7 @@ function formValues(context) {
   const values = { country: context.profileCountry };
   for (const [key, control] of Object.entries(context.inputs)) {
     if (key === "country") continue;
-    values[key] = control.type === "date"
+    values[key] = control.type === "date" || control.tagName === "SELECT"
       ? control.value
       : control.value === ""
         ? (control.dataset.asset === "true" ? 0 : null)
@@ -828,7 +840,10 @@ function renderPotNarrative(result, values, format) {
 function renderMethodology(values) {
   const items = values.country === "UK" ? [
     ["Monthly modelling.", "Investments grow and withdrawals occur monthly; tables report projection years."],
-    ["Tax-efficient ordering.", "Stocks, ISA and cash bridge pension age; simplified UK pension tax assumptions apply after access."],
+    ["Tax-year modelling.", "Taxable pension and State Pension income is grouped into 6 April tax years; enter any taxable income received earlier in the first one."],
+    ["Regional income tax.", "The model applies the Personal Allowance taper, additional rate, and either rest-of-UK or Scottish 2026/27 bands."],
+    ["Threshold assumption.", "Current thresholds are held nominally through 2030/31 and then assumed to rise with inflation, while results remain in today's money."],
+    ["Tax-efficient ordering.", "Stocks, ISA and cash bridge pension age; UK pension tax assumptions apply after access."],
     ["State Pension.", "State Pension replaces part of the target portfolio withdrawal."],
     ["UK scope.", "CGT, dividend tax, NI, fees beyond real return, and future rule changes are not modelled."]
   ] : [
