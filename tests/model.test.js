@@ -6,6 +6,9 @@ const {
   DEFAULTS: MODEL_DEFAULTS,
   parseLocalDate,
   ageAt,
+  ukTaxYearStart,
+  realTaxThreshold,
+  ukTaxParameters,
   validateModelInputs,
   scenario,
   calculateIncomeTax,
@@ -44,6 +47,8 @@ test("built-in defaults start with zero assets and the new early-income settings
   assert.equal(MODEL_DEFAULTS.inheritanceAmount, null);
   assert.equal(MODEL_DEFAULTS.boostUntilAge, 60);
   assert.equal(MODEL_DEFAULTS.boost, 40);
+  assert.equal(MODEL_DEFAULTS.taxRegion, "restOfUK");
+  assert.equal(MODEL_DEFAULTS.firstTaxYearPriorIncome, 0);
 });
 
 function withoutInheritance(overrides = {}) {
@@ -156,11 +161,33 @@ test("monthly compounding and withdrawals match an independent recurrence", () =
   close(result.rows[0].netMonthly, 2500);
 });
 
-test("income tax respects allowance, basic band and higher rate", () => {
+test("rest-of-UK income tax includes allowance taper and additional rate", () => {
   close(calculateIncomeTax(12570, 12570, 37700), 0);
   close(calculateIncomeTax(50270, 12570, 37700), 7540);
   close(calculateIncomeTax(60000, 12570, 37700), 11432);
+  close(calculateIncomeTax(100000, 12570, 37700), 27432);
+  close(calculateIncomeTax(110000, 12570, 37700), 33432);
+  close(calculateIncomeTax(125140, 12570, 37700), 42516);
+  close(calculateIncomeTax(150000, 12570, 37700), 53703);
   assert.throws(() => calculateIncomeTax(-1, 12570, 37700), /Tax inputs/);
+});
+
+test("Scottish non-savings income uses the 2026/27 six-band schedule", () => {
+  close(calculateIncomeTax(60000, 12570, 37700, { region: "scotland" }), 13182.05);
+  assert.ok(calculateIncomeTax(150000, 12570, 37700, { region: "scotland" }) >
+    calculateIncomeTax(150000, 12570, 37700));
+  assert.throws(() => calculateIncomeTax(50000, 12570, 37700, { region: "unsupported" }), /supported UK region/);
+});
+
+test("UK tax years start on 6 April and frozen thresholds erode in real terms", () => {
+  assert.equal(ukTaxYearStart(parseLocalDate("2027-04-05")), 2026);
+  assert.equal(ukTaxYearStart(parseLocalDate("2027-04-06")), 2027);
+  close(realTaxThreshold(12570, 2026, 2.5), 12570);
+  close(realTaxThreshold(12570, 2030, 2.5), 12570 / 1.025 ** 4);
+  close(realTaxThreshold(12570, 2040, 2.5), 12570 / 1.025 ** 4);
+  const scottish = ukTaxParameters({ ...MODEL_DEFAULTS, taxRegion: "scotland" }, 2027);
+  assert.equal(scottish.region, "scotland");
+  assert.ok(scottish.allowance < MODEL_DEFAULTS.personalAllowance);
 });
 
 test("private pension remains inaccessible before pension age", () => {
@@ -239,12 +266,25 @@ test("pension withdrawals apply 25% tax-free cash and income tax", () => {
   });
   const row = scenario(input, 0.03).rows[0];
   close(row.pensionDraw, 30000);
-  close(row.incomeTax, 1986);
-  close(row.netMonthly, (30000 - 1986) / 12);
+  close(row.incomeTax, 547.317073);
+  close(row.netMonthly, (30000 - row.incomeTax) / 12);
 
   const noTaxFreeCash = scenario({ ...input, taxFreeCap: 0 }, 0.03).rows[0];
-  close(noTaxFreeCash.incomeTax, 3486);
+  close(noTaxFreeCash.incomeTax, 1547.317073);
   assert.ok(noTaxFreeCash.netMonthly < row.netMonthly);
+});
+
+test("first partial tax year accounts for taxable income received before retirement", () => {
+  const input = withoutInheritance({
+    birthDate: "1970-01-01", retirementDate: "2027-01-01", horizon: 1,
+    stocks: 0, isa: 0, cash: 0, pensionOne: 1000000, pensionTwo: 0,
+    realReturn: 0, pensionAge: 57, stateAge: 67, statePension: 0,
+    boostUntilAge: 50, boost: 0
+  });
+  const withoutPriorIncome = scenario(input, 0.03).rows[0];
+  const withPriorIncome = scenario({ ...input, firstTaxYearPriorIncome: 50000 }, 0.03).rows[0];
+  close(withPriorIncome.incomeTax, 3493.317073);
+  assert.ok(withPriorIncome.netMonthly < withoutPriorIncome.netMonthly);
 });
 
 test("State Pension is received even when it exceeds the drawdown target", () => {
@@ -481,6 +521,8 @@ test("date parsing and age calculation handle birthday boundaries", () => {
 test("invalid financial inputs are rejected before calculation", () => {
   assert.match(validateModelInputs(values({ stocks: -1 }), 0.03).join(" "), /stocks/);
   assert.match(validateModelInputs(values({ realReturn: -100 }), 0.03).join(" "), /realReturn/);
+  assert.match(validateModelInputs(values({ firstTaxYearPriorIncome: -1 }), 0.03).join(" "), /firstTaxYearPriorIncome/);
+  assert.match(validateModelInputs(values({ taxRegion: "unsupported" }), 0.03).join(" "), /taxRegion/);
   assert.match(validateModelInputs(values({ inheritanceYear: 2037, inheritanceAmount: null }), 0.03).join(" "), /Inheritance/);
   assert.throws(() => scenario(values({ horizon: 0 }), 0.03), /horizon/);
   assert.throws(() => scenario(DEFAULTS, 0), /Drawdown rate/);
@@ -518,6 +560,8 @@ test("random valid inputs preserve core accounting invariants", () => {
       statePension: amount(20000),
       boostUntilAge: 50 + Math.floor(random() * 16),
       boost: Math.floor(random() * 201),
+      taxRegion: random() > 0.5 ? "restOfUK" : "scotland",
+      firstTaxYearPriorIncome: amount(100000),
       taxFreeShare: random() * 30,
       taxFreeCap: amount(400000)
     });

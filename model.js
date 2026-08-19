@@ -10,6 +10,19 @@
   const CARE_RESERVE_AGE = 90;
   const CARE_RESERVE = 1000000;
   const MAX_BOOST = 200;
+  const UK_TAX_BASE_YEAR = 2026;
+  const UK_TAX_FREEZE_LAST_YEAR = 2030;
+  const UK_ALLOWANCE_TAPER_THRESHOLD = 100000;
+  const UK_ADDITIONAL_RATE_THRESHOLD = 125140;
+  const UK_TAX_REGIONS = Object.freeze(["restOfUK", "scotland"]);
+  const SCOTTISH_TAX_BANDS = Object.freeze([
+    Object.freeze({ upper: 3967, rate: 0.19 }),
+    Object.freeze({ upper: 16956, rate: 0.2 }),
+    Object.freeze({ upper: 31092, rate: 0.21 }),
+    Object.freeze({ upper: 62430, rate: 0.42 }),
+    Object.freeze({ upper: 125140, rate: 0.45 }),
+    Object.freeze({ upper: Infinity, rate: 0.48 })
+  ]);
 
   const DEFAULTS = Object.freeze({
     country: "UK",
@@ -31,6 +44,8 @@
     statePension: 12547.6,
     boostUntilAge: 60,
     boost: 40,
+    taxRegion: "restOfUK",
+    firstTaxYearPriorIncome: 0,
     personalAllowance: 12570,
     basicBand: 37700,
     taxFreeShare: 25,
@@ -126,7 +141,7 @@
 
     const nonNegative = [
       "stocks", "isa", "cash", "pensionOne", "pensionTwo", "statePension", "boost",
-      "personalAllowance", "basicBand", "taxFreeShare", "taxFreeCap"
+      "firstTaxYearPriorIncome", "personalAllowance", "basicBand", "taxFreeShare", "taxFreeCap"
     ];
     for (const key of nonNegative) {
       if (!Number.isFinite(values[key]) || values[key] < 0) errors.push(`${key} must be a finite non-negative number.`);
@@ -138,6 +153,7 @@
       errors.push("State Pension age must be later than pension access age.");
     }
     if (!Number.isFinite(values.boostUntilAge)) errors.push("boostUntilAge must be finite.");
+    if (!UK_TAX_REGIONS.includes(values.taxRegion)) errors.push("taxRegion must be restOfUK or scotland.");
     if (values.taxFreeShare > 100) errors.push("taxFreeShare cannot exceed 100%.");
     if (!Number.isFinite(rate) || rate <= 0 || rate > 1) errors.push("Drawdown rate must be greater than 0 and no more than 100%.");
 
@@ -188,6 +204,33 @@
     let inheritanceAdded = false;
     let depletedAt = null;
     const rows = [];
+    const firstTaxYear = ukTaxYearStart(retirement);
+    const taxYears = new Map();
+
+    /** Return cumulative projected taxable income and liability for a UK tax year. */
+    function taxStateAt(date) {
+      const taxYear = ukTaxYearStart(date);
+      if (!taxYears.has(taxYear)) {
+        const parameters = ukTaxParameters(values, taxYear);
+        const priorIncome = taxYear === firstTaxYear ? values.firstTaxYearPriorIncome : 0;
+        taxYears.set(taxYear, {
+          income: priorIncome,
+          liability: calculateIncomeTax(priorIncome, parameters.allowance, parameters.basicBand, parameters),
+          parameters
+        });
+      }
+      return taxYears.get(taxYear);
+    }
+
+    /** Add income to its 6 April tax year and return only its incremental liability. */
+    function taxOnAdditionalIncome(date, income) {
+      const state = taxStateAt(date);
+      state.income += income;
+      const liability = calculateIncomeTax(state.income, state.parameters.allowance, state.parameters.basicBand, state.parameters);
+      const incremental = Math.max(0, liability - state.liability);
+      state.liability = liability;
+      return incremental;
+    }
 
     /**
      * Withdraw proportionally from stocks, ISA, and cash.
@@ -226,6 +269,7 @@
       let grossIncome = 0;
       let pensionDraw = 0;
       let stateIncome = 0;
+      let incomeTax = 0;
       let unmet = 0;
       let inheritedThisYear = false;
 
@@ -257,6 +301,7 @@
         stateIncome += monthlyState;
         grossIncome += Math.max(monthlyTarget, monthlyState);
         let required = Math.max(0, monthlyTarget - monthlyState);
+        let monthlyPensionDraw = 0;
 
         const pensionAvailable = date >= pensionDate;
         if (!pensionAvailable) {
@@ -265,25 +310,34 @@
           required -= fromAccessible;
         } else if (date < stateDate) {
           const plannedPension = Math.min(required, annualTaxEfficientPension / 12, pension);
-          drawFromPension(plannedPension);
-          pensionDraw += plannedPension;
-          required -= plannedPension;
+          const plannedDraw = drawFromPension(plannedPension);
+          pensionDraw += plannedDraw;
+          monthlyPensionDraw += plannedDraw;
+          required -= plannedDraw;
           const fromAccessible = Math.min(accessible, required);
           drawFromAccessible(fromAccessible);
           required -= fromAccessible;
           const extraPension = Math.min(pension, required);
-          drawFromPension(extraPension);
-          pensionDraw += extraPension;
-          required -= extraPension;
+          const extraDraw = drawFromPension(extraPension);
+          pensionDraw += extraDraw;
+          monthlyPensionDraw += extraDraw;
+          required -= extraDraw;
         } else {
           const fromAccessible = Math.min(accessible, required);
           drawFromAccessible(fromAccessible);
           required -= fromAccessible;
           const fromPension = Math.min(pension, required);
-          drawFromPension(fromPension);
-          pensionDraw += fromPension;
-          required -= fromPension;
+          const pensionWithdrawal = drawFromPension(fromPension);
+          pensionDraw += pensionWithdrawal;
+          monthlyPensionDraw += pensionWithdrawal;
+          required -= pensionWithdrawal;
         }
+
+        const availableTaxFreeCash = Math.max(0, values.taxFreeCap - taxFreeCashUsed);
+        const taxFreeCash = Math.min(monthlyPensionDraw * taxFreeRate, availableTaxFreeCash);
+        taxFreeCashUsed += taxFreeCash;
+        const taxableIncome = Math.max(0, monthlyPensionDraw - taxFreeCash + monthlyState);
+        incomeTax += taxOnAdditionalIncome(date, taxableIncome);
 
         if (required > 1e-8) {
           unmet += required;
@@ -291,11 +345,6 @@
         }
       }
 
-      const availableTaxFreeCash = Math.max(0, values.taxFreeCap - taxFreeCashUsed);
-      const taxFreeCash = Math.min(pensionDraw * taxFreeRate, availableTaxFreeCash);
-      taxFreeCashUsed += taxFreeCash;
-      const taxableIncome = Math.max(0, pensionDraw - taxFreeCash + stateIncome);
-      const incomeTax = calculateIncomeTax(taxableIncome, values.personalAllowance, values.basicBand);
       const netIncome = Math.max(0, grossIncome - unmet - incomeTax);
       const startDate = addMonths(retirement, projectionYear * 12);
       const endDate = addMonths(retirement, (projectionYear + 1) * 12 - 1);
@@ -506,21 +555,85 @@
     return migrated;
   }
 
+  /** Return the starting calendar year of the UK tax year containing a date. */
+  function ukTaxYearStart(date) {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) throw new TypeError("A valid date is required for the UK tax year.");
+    const year = date.getFullYear();
+    return date >= new Date(year, 3, 6, 12) ? year : year - 1;
+  }
+
   /**
-   * Calculate simplified UK basic- and higher-rate income tax.
-   * @param {number} income Annual taxable-source income before allowance.
-   * @param {number} allowance Personal allowance.
-   * @param {number} basicBand Width of the basic-rate band.
-   * @returns {number} Annual income tax.
+   * Convert a current nominal threshold to real 2026/27 pounds.
+   * Thresholds are assumed frozen through 2030/31, then inflation-linked.
    */
-  function calculateIncomeTax(income, allowance, basicBand) {
-    if (![income, allowance, basicBand].every(Number.isFinite) || income < 0 || allowance < 0 || basicBand < 0) {
-      throw new RangeError("Tax inputs must be finite non-negative numbers.");
+  function realTaxThreshold(amount, taxYear, inflation) {
+    if (!Number.isFinite(amount) || amount < 0 || !Number.isInteger(taxYear) ||
+        !Number.isFinite(inflation) || inflation <= -100) {
+      throw new RangeError("Tax-threshold inputs must be valid non-negative values.");
     }
-    const taxable = Math.max(0, income - allowance);
+    const growth = 1 + inflation / 100;
+    const elapsedYears = Math.max(0, taxYear - UK_TAX_BASE_YEAR);
+    const indexedYears = Math.max(0, taxYear - UK_TAX_FREEZE_LAST_YEAR);
+    return amount * Math.pow(growth, indexedYears - elapsedYears);
+  }
+
+  /** Build real-terms tax parameters for one 6 April to 5 April tax year. */
+  function ukTaxParameters(values, taxYear) {
+    const threshold = amount => realTaxThreshold(amount, taxYear, values.inflation);
+    return Object.freeze({
+      taxYear,
+      region: values.taxRegion,
+      allowance: threshold(values.personalAllowance),
+      basicBand: threshold(values.basicBand),
+      taperThreshold: threshold(UK_ALLOWANCE_TAPER_THRESHOLD),
+      additionalThreshold: threshold(UK_ADDITIONAL_RATE_THRESHOLD),
+      scottishBands: SCOTTISH_TAX_BANDS.map(band => Object.freeze({
+        upper: Number.isFinite(band.upper) ? threshold(band.upper) : Infinity,
+        rate: band.rate
+      }))
+    });
+  }
+
+  /**
+   * Calculate UK non-savings income tax, including allowance taper and regional bands.
+   * @param {number} income Adjusted net income before the Personal Allowance.
+   * @param {number} allowance Standard Personal Allowance for the tax year.
+   * @param {number} basicBand Rest-of-UK basic-rate band width.
+   * @param {Object} [options] Region and real-terms thresholds for the tax year.
+   * @returns {number} Annual income-tax liability.
+   */
+  function calculateIncomeTax(income, allowance, basicBand, options = {}) {
+    const region = options.region || "restOfUK";
+    const taperThreshold = options.taperThreshold ?? UK_ALLOWANCE_TAPER_THRESHOLD;
+    const additionalThreshold = options.additionalThreshold ?? UK_ADDITIONAL_RATE_THRESHOLD;
+    if (![income, allowance, basicBand, taperThreshold, additionalThreshold].every(Number.isFinite) ||
+        [income, allowance, basicBand, taperThreshold, additionalThreshold].some(value => value < 0) ||
+        !UK_TAX_REGIONS.includes(region)) {
+      throw new RangeError("Tax inputs must be finite non-negative numbers with a supported UK region.");
+    }
+
+    const taperedAllowance = Math.max(0, allowance - Math.max(0, income - taperThreshold) / 2);
+    const taxable = Math.max(0, income - taperedAllowance);
+    if (region === "scotland") {
+      const bands = options.scottishBands || SCOTTISH_TAX_BANDS;
+      let lower = 0;
+      let tax = 0;
+      for (const band of bands) {
+        if ((!Number.isFinite(band.upper) && band.upper !== Infinity) || !Number.isFinite(band.rate) ||
+            band.upper < lower || band.rate < 0) throw new RangeError("Scottish tax bands must be ordered non-negative values.");
+        const slice = Math.max(0, Math.min(taxable, band.upper) - lower);
+        tax += slice * band.rate;
+        if (taxable <= band.upper) break;
+        lower = band.upper;
+      }
+      return tax;
+    }
+
+    const additionalLimit = Math.max(basicBand, additionalThreshold);
     const basic = Math.min(taxable, basicBand) * 0.2;
-    const higher = Math.max(0, taxable - basicBand) * 0.4;
-    return basic + higher;
+    const higher = Math.min(Math.max(0, taxable - basicBand), additionalLimit - basicBand) * 0.4;
+    const additional = Math.max(0, taxable - additionalLimit) * 0.45;
+    return basic + higher + additional;
   }
 
   /**
@@ -667,6 +780,9 @@
     addYears,
     addMonths,
     ageAt,
+    ukTaxYearStart,
+    realTaxThreshold,
+    ukTaxParameters,
     validateModelInputs,
     scenario,
     calculateIncomeTax,

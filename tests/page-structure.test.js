@@ -85,6 +85,16 @@ test("percentage assumptions use in-box suffixes while ages use plain inputs", (
   }
 });
 
+test("UK assumptions expose regional and first-partial-year tax inputs", () => {
+  assert.match(app, /selectInput\(context, "taxRegion"/);
+  assert.match(app, /England, Wales or Northern Ireland/);
+  assert.match(app, /\["scotland", "Scotland"\]/);
+  assert.match(app, /moneyInput\(context, "firstTaxYearPriorIncome"/);
+  assert.match(app, /Taxable pension and State Pension income is grouped into 6 April tax years/);
+  assert.match(model, /UK_ADDITIONAL_RATE_THRESHOLD = 125140/);
+  assert.match(model, /const SCOTTISH_TAX_BANDS/);
+});
+
 test("render contexts isolate currency, chart geometry, tooltip and keyboard state", () => {
   assert.match(app, /const contexts = \{\}/);
   assert.match(app, /context\.results = \{ values, format, three, four, downsideThree, downsideFour \}/);
@@ -140,6 +150,8 @@ test("methodology remains country appropriate", () => {
   assert.match(app, /USA scope\./);
   assert.match(app, /Social Security, Medicare, state taxes, joint filing/);
   assert.match(app, /State Pension offsets part of the income target/);
+  assert.match(app, /Personal Allowance taper, additional rate/);
+  assert.match(app, /held nominally through 2030\/31/);
   assert.match(html, /£1m remaining at age 90/);
 });
 
